@@ -49,14 +49,17 @@ export default function HomePage() {
       {/* 今日待复习提醒 */}
       <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm dark:border-neutral-800 dark:bg-neutral-900">
         {dueCount === null ? (
-          <span className="text-neutral-400">加载今日复习…</span>
-        ) : dueCount > 0 ? (
-          <Link href="/review" className="font-medium text-blue-600 hover:underline">
-            📚 今日有 {dueCount} 词待复习，去复习 →
-          </Link>
-        ) : (
-          <span className="text-neutral-500">暂无到期复习，查个新词吧</span>
-        )}
+                  <span className="text-neutral-400">加载今日复习…</span>
+                ) : dueCount > 0 ? (
+                  <Link href="/review" className="font-medium text-blue-600 hover:underline">
+                    📚 今日有 {dueCount} 词待复习，去复习 →
+                  </Link>
+                ) : (
+                  <span className="text-neutral-500">暂无到期复习，查个新词吧</span>
+                )}
+                <Link href="/stats" className="ml-auto text-xs text-neutral-500 hover:underline">
+                  统计 →
+                </Link>
       </div>
 
       {/* 搜索框 */}

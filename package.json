@@ -12,7 +12,10 @@
     "typecheck": "tsc --noEmit",
     "dict:seed": "tsx scripts/seed-sample-dict.ts public",
     "dict:compile": "tsx scripts/compile-dict.ts",
-    "books:compile": "tsx scripts/compile-books.ts"
+    "books:compile": "tsx scripts/compile-books.ts",
+    "content:validate": "tsx scripts/validate-content.ts public",
+    "content:freshness": "tsx scripts/check-freshness.ts public 365",
+    "quality-gate": "tsx scripts/quality-gate.ts"
   },
   "dependencies": {
     "dexie": "^4.4.4",

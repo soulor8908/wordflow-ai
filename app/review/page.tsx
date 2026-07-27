@@ -17,6 +17,8 @@ import { getTodayNewWords } from "@/lib/review/book-queue";
 import { submitReview, type ReviewOutcome } from "@/lib/review/review-session";
 import { findEntry, type DictEntry } from "@/lib/dict/dict-loader";
 import type { Rating } from "@/lib/review/fsrs-scheduler";
+import { recordStudy } from "@/lib/stats/streak-io";
+import { todayLocalDate } from "@/lib/review/book-queue";
 
 /** MVP 默认词书；词书选择 UI 属 Week 4 */
 const DEFAULT_BOOK_ID = "kaoyan-core";
@@ -106,6 +108,18 @@ export default function ReviewPage() {
       setSubmitting(true);
       try {
         const outcome = await submitReview(currentItem, rating, "standard");
+        // Streak + 学习日志累加（Good/Easy 计为正确，Again/Hard 计为错误）
+        const correct = rating === "Good" || rating === "Easy" ? 1 : 0;
+        await recordStudy(
+          todayLocalDate(),
+          {
+            newCount: outcome.wasNew ? 1 : 0,
+            reviewCount: outcome.wasNew ? 0 : 1,
+            correctCount: correct,
+          }
+        ).catch(() => {
+          /* Streak 写入失败不阻塞复习主流程（本地优先，下次会补） */
+        });
         const next = [...outcomes, outcome];
         setOutcomes(next);
         setFlipped(false);
