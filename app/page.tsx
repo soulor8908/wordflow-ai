@@ -6,13 +6,15 @@
  * - 打开即聚焦搜索框
  * - 输入即搜（debounce 80ms），候选项带词频星级
  * - 点击候选项跳转 /word/[word]
- * - 下方显示今日待复习数量提醒（点 Streak 入口暂留 P2）
+ * - 下方显示今日待复习数量提醒
+ * - 首次访问引导：无查询 + 无待复习时展示"三步上手"卡片
  */
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useSearch } from "@/lib/search/use-search";
 import { countDueCards } from "@/lib/storage/db";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 /** 词频 → 星级（1-5 星，对齐 ECDICT collins 星级） */
 function frequencyToStars(freq: number): string {
@@ -40,6 +42,12 @@ export default function HomePage() {
       .catch(() => setDueCount(0));
   }, []);
 
+  const hasQuery = query.trim().length > 0;
+  // 清除按钮直接从 query 派生，避免 effect 内 setState
+  const showClear = query.length > 0;
+  const showEmptyState =
+    !hasQuery && dueCount !== null && dueCount === 0 && indexReady;
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-6 px-4 py-10">
       <header className="text-center">
@@ -47,39 +55,65 @@ export default function HomePage() {
         <p className="mt-1 text-sm text-neutral-500">查词即背词 · 本地优先 · 离线可用</p>
       </header>
 
-      {/* 今日待复习提醒 */}
-      <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm dark:border-neutral-800 dark:bg-neutral-900">
+      {/* 今日待复习提醒：修复 flex 布局，让"统计"链接真正靠右 */}
+      <div className="flex items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm dark:border-neutral-800 dark:bg-neutral-900">
         {dueCount === null ? (
-                  <span className="text-neutral-400">加载今日复习…</span>
-                ) : dueCount > 0 ? (
-                  <Link href="/review" className="font-medium text-blue-600 hover:underline">
-                    📚 今日有 {dueCount} 词待复习，去复习 →
-                  </Link>
-                ) : (
-                  <span className="text-neutral-500">暂无到期复习，查个新词吧</span>
-                )}
-                <Link href="/stats" className="ml-auto text-xs text-neutral-500 hover:underline">
-                  统计 →
-                </Link>
+          <span className="text-neutral-400">加载今日复习…</span>
+        ) : dueCount > 0 ? (
+          <Link
+            href="/review"
+            className="font-medium text-blue-600 hover:underline"
+          >
+            📚 今日有 {dueCount} 词待复习，去复习 →
+          </Link>
+        ) : (
+          <span className="text-neutral-500">暂无到期复习，查个新词吧</span>
+        )}
+        <Link
+          href="/stats"
+          className="shrink-0 text-xs text-neutral-500 hover:underline"
+        >
+          统计 →
+        </Link>
       </div>
 
-      {/* 搜索框 */}
+      {/* 搜索框 + 自定义清除按钮（替代 type=search 原生按钮，避免样式冲突） */}
       <div className="flex flex-col gap-2">
-        <Input
-          ref={inputRef}
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="输入单词查词（支持前缀补全与模糊纠错）"
-          aria-label="查词输入框"
-        />
+        <div className="relative">
+          <Input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="输入单词查词（支持前缀补全与模糊纠错）"
+            aria-label="查词输入框"
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
+            enterKeyHint="go"
+          />
+          {showClear && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setQuery("");
+                inputRef.current?.focus();
+              }}
+              aria-label="清除输入"
+              className="absolute right-2 top-1/2 h-7 w-7 -translate-y-1/2 rounded-full px-0 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
+            >
+              ✕
+            </Button>
+          )}
+        </div>
         {!indexReady && (
           <span className="text-xs text-neutral-400">加载词库索引…</span>
         )}
       </div>
 
       {/* 候选列表 */}
-      {query.trim() && (
+      {hasQuery && (
         <ul className="flex flex-col divide-y divide-neutral-100 rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
           {loading && (
             <li className="px-4 py-3 text-sm text-neutral-400">搜索中…</li>
@@ -105,6 +139,63 @@ export default function HomePage() {
             ))}
         </ul>
       )}
+
+      {/* 首次访问引导：无查询 + 无待复习时展示三步上手 */}
+      {showEmptyState && <GettingStarted />}
     </main>
+  );
+}
+
+/** 首次访问引导卡片：用三步让新用户立刻明白产品价值 */
+function GettingStarted() {
+  const steps = [
+    {
+      icon: "🔍",
+      title: "查个词",
+      desc: "试试 abandon、ability、abroad",
+    },
+    {
+      icon: "＋",
+      title: "收藏入队",
+      desc: "词条页右上角加入复习队列",
+    },
+    {
+      icon: "📚",
+      title: "明天来复习",
+      desc: "FSRS 算法会在最佳时机提醒你",
+    },
+  ];
+  return (
+    <section className="rounded-xl border border-neutral-200 bg-white px-5 py-5 dark:border-neutral-800 dark:bg-neutral-950">
+      <h2 className="mb-3 text-sm font-medium text-neutral-700 dark:text-neutral-300">
+        三步上手
+      </h2>
+      <ol className="flex flex-col gap-3">
+        {steps.map((s, i) => (
+          <li key={i} className="flex items-start gap-3">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-50 text-base dark:bg-blue-950">
+              {s.icon}
+            </span>
+            <div className="flex flex-col">
+              <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+                {s.title}
+              </span>
+              <span className="text-xs text-neutral-500">{s.desc}</span>
+            </div>
+          </li>
+        ))}
+      </ol>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {["abandon", "ability", "abroad"].map((w) => (
+          <Link
+            key={w}
+            href={`/word/${encodeURIComponent(w)}`}
+            className="rounded-full border border-neutral-300 px-3 py-1 text-xs font-mono text-neutral-600 hover:border-blue-400 hover:text-blue-600 dark:border-neutral-700 dark:text-neutral-300"
+          >
+            {w}
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }

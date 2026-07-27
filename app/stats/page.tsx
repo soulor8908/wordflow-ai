@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import { getStreak, listStudyLogs, type StudyLog } from "@/lib/stats/streak-io";
 import { countByPrefix } from "@/lib/storage/db";
 import { todayLocalDate } from "@/lib/review/book-queue";
+import { Button } from "@/components/ui/button";
 import PwaSettings from "./pwa-settings";
 
 interface StatsData {
@@ -147,7 +148,17 @@ export default function StatsPage() {
             </div>
           </div>
         ) : (
-          <p className="text-sm text-neutral-400">今日还未学习，去复习开始吧</p>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-neutral-500">
+              今日还没有学习记录，开始今天的第一张卡片吧
+            </p>
+            <Link
+              href="/review"
+              className="shrink-0 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+            >
+              去复习
+            </Link>
+          </div>
         )}
       </section>
 
@@ -165,6 +176,7 @@ export default function StatsPage() {
           <span className="inline-block h-2.5 w-2.5 rounded-sm bg-green-600 dark:bg-green-500" />
           <span>多</span>
         </div>
+        <p className="mt-2 text-[10px] text-neutral-400">点击方格查看当日详情</p>
       </section>
 
       {/* 总卡片数 */}
@@ -180,18 +192,19 @@ export default function StatsPage() {
   );
 }
 
-/** 最近 N 周的热力图（GitHub 风格方格） */
+/** 最近 N 周的热力图（GitHub 风格方格，支持点击查看详情） */
 function Heatmap({ logs, weeks = 12 }: { logs: StudyLog[]; weeks?: number }) {
   const today = new Date();
+  const [selected, setSelected] = useState<string | null>(null);
   // 从今天回溯 weeks*7 天，按列（周）× 行（周一到周日）排列
   const days = weeks * 7;
-  const cells: { date: string; count: number }[] = [];
+  const cells: { date: string; log: StudyLog | null; count: number }[] = [];
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
     const dateStr = todayLocalDate(d);
-    const log = logs.find((l) => l.date === dateStr);
-    cells.push({ date: dateStr, count: log ? log.newCount + log.reviewCount : 0 });
+    const log = logs.find((l) => l.date === dateStr) ?? null;
+    cells.push({ date: dateStr, log, count: log ? log.newCount + log.reviewCount : 0 });
   }
 
   const intensity = (count: number): string => {
@@ -202,25 +215,49 @@ function Heatmap({ logs, weeks = 12 }: { logs: StudyLog[]; weeks?: number }) {
   };
 
   // 按周分列：每周 7 格（周一到周日）
-  const columns: { date: string; count: number }[][] = [];
+  const columns: { date: string; log: StudyLog | null; count: number }[][] = [];
   for (let w = 0; w < weeks; w++) {
     columns.push(cells.slice(w * 7, w * 7 + 7));
   }
 
+  const selectedCell = selected ? cells.find((c) => c.date === selected) : null;
+
   return (
-    <div className="flex gap-1 overflow-x-auto">
-      {columns.map((col, ci) => (
-        <div key={ci} className="flex flex-col gap-1">
-          {col.map((cell, ri) => (
-            <div
-              key={ri}
-              className={`h-2.5 w-2.5 rounded-sm ${intensity(cell.count)}`}
-              title={`${cell.date}：${cell.count} 张`}
-              aria-label={`${cell.date} 学习 ${cell.count} 张`}
-            />
-          ))}
+    <div className="flex flex-col gap-2">
+      <div className="flex gap-1 overflow-x-auto">
+        {columns.map((col, ci) => (
+          <div key={ci} className="flex flex-col gap-1">
+            {col.map((cell, ri) => (
+              <Button
+                key={ri}
+                type="button"
+                variant="ghost"
+                onClick={() => setSelected(cell.date)}
+                className={`h-3.5 w-3.5 rounded-sm p-0 transition-transform hover:scale-125 ${intensity(cell.count)} ${
+                  selected === cell.date ? "ring-2 ring-blue-500 ring-offset-1" : ""
+                }`}
+                title={`${cell.date}：${cell.count} 张`}
+                aria-label={`${cell.date} 学习 ${cell.count} 张`}
+                aria-pressed={selected === cell.date}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+      {selectedCell && (
+        <div className="rounded-md bg-neutral-50 px-3 py-2 text-xs dark:bg-neutral-900">
+          <p className="font-medium text-neutral-700 dark:text-neutral-300">
+            {selectedCell.date}
+          </p>
+          {selectedCell.count > 0 && selectedCell.log ? (
+            <p className="mt-0.5 text-neutral-500">
+              学习 {selectedCell.count} 张 · 新学 {selectedCell.log.newCount} · 复习 {selectedCell.log.reviewCount} · 正确 {selectedCell.log.correctCount}
+            </p>
+          ) : (
+            <p className="mt-0.5 text-neutral-400">未学习</p>
+          )}
         </div>
-      ))}
+      )}
     </div>
   );
 }

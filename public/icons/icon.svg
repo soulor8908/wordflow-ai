@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- WordFlow PWA Icon：圆角方块底 + W 字母 + 翻页书脊 -->
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#1e40af"/>
+    </linearGradient>
+  </defs>
+  <!-- maskable 安全区：底色填满 512x512 -->
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <!-- W 字母（居中，留出 maskable safe zone 80px 边距） -->
+  <path d="M 128 168 L 176 344 L 220 232 L 256 344 L 292 232 L 336 344 L 384 168"
+        fill="none" stroke="#ffffff" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- 翻页书脊：右下角小书页叠加，暗示"查词即背词" -->
+  <g transform="translate(336,336)">
+    <rect x="0" y="0" width="64" height="48" rx="4" fill="#ffffff" opacity="0.92"/>
+    <line x1="12" y1="16" x2="52" y2="16" stroke="#1e40af" stroke-width="3" stroke-linecap="round"/>
+    <line x1="12" y1="26" x2="44" y2="26" stroke="#1e40af" stroke-width="3" stroke-linecap="round"/>
+    <line x1="12" y1="36" x2="48" y2="36" stroke="#1e40af" stroke-width="3" stroke-linecap="round"/>
+  </g>
+</svg>

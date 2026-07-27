@@ -274,7 +274,7 @@ export default function ReviewPage() {
             />
           </div>
         )}
-        <p className="text-center text-[10px] text-neutral-400">
+        <p className="text-center text-xs text-neutral-400">
           键盘：空格翻面 · 1 忘记 · 2 模糊 · 3 认识 · 4 Easy
         </p>
       </div>
@@ -430,6 +430,7 @@ function DoneScreen({
             <Stat label="认识" value={byRating.Good ?? 0} color="text-green-500" />
             <Stat label="Easy" value={byRating.Easy ?? 0} color="text-blue-500" />
           </div>
+          <Encouragement reviewed={reviewed} newCount={newCount} />
           <p className="text-xs text-neutral-400">
             进度已实时保存，随时可退出
           </p>
@@ -459,5 +460,24 @@ function Stat({
       <p className={`text-lg font-bold ${color}`}>{value}</p>
       <p className="text-xs text-neutral-500">{label}</p>
     </div>
+  );
+}
+
+/** 完成页情感激励：根据复习量给出不同鼓励，强化正反馈 */
+function Encouragement({ reviewed, newCount }: { reviewed: number; newCount: number }) {
+  const message =
+    reviewed >= 50
+      ? "🔥 今日超神！坚持是这个 App 唯一的秘籍"
+      : reviewed >= 20
+        ? "💪 又前进了一步，记忆正在变成长期记忆"
+        : reviewed >= 10
+          ? "🌱 今天的积累，会成为明天的本能"
+          : newCount > 0
+            ? "✨ 新词已入队，FSRS 会在最佳时机让它重现"
+            : "👋 完成今日复习，明天见";
+  return (
+    <p className="text-sm font-medium text-blue-600 dark:text-blue-400">
+      {message}
+    </p>
   );
 }

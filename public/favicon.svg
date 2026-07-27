@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- WordFlow favicon -->
+  <rect width="32" height="32" rx="6" fill="#2563eb"/>
+  <path d="M 8 10 L 11 22 L 13.5 15 L 16 22 L 18.5 15 L 21 22 L 24 10"
+        fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

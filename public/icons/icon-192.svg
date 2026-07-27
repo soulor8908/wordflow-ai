@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <!-- WordFlow PWA Icon (192) -->
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#1e40af"/>
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="36" fill="url(#bg)"/>
+  <path d="M 48 64 L 66 130 L 82 88 L 96 130 L 110 88 L 126 130 L 144 64"
+        fill="none" stroke="#ffffff" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <g transform="translate(126,126)">
+    <rect x="0" y="0" width="24" height="18" rx="1.5" fill="#ffffff" opacity="0.92"/>
+    <line x1="4.5" y1="6" x2="19.5" y2="6" stroke="#1e40af" stroke-width="1.2" stroke-linecap="round"/>
+    <line x1="4.5" y1="10" x2="16.5" y2="10" stroke="#1e40af" stroke-width="1.2" stroke-linecap="round"/>
+    <line x1="4.5" y1="14" x2="18" y2="14" stroke="#1e40af" stroke-width="1.2" stroke-linecap="round"/>
+  </g>
+</svg>
