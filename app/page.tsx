@@ -12,6 +12,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useSearch } from "@/lib/search/use-search";
 import { countDueCards } from "@/lib/storage/db";
+import { Input } from "@/components/ui/input";
 
 /** 词频 → 星级（1-5 星，对齐 ECDICT collins 星级） */
 function frequencyToStars(freq: number): string {
@@ -64,14 +65,13 @@ export default function HomePage() {
 
       {/* 搜索框 */}
       <div className="flex flex-col gap-2">
-        <input
+        <Input
           ref={inputRef}
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="输入单词查词（支持前缀补全与模糊纠错）"
           aria-label="查词输入框"
-          className="w-full rounded-lg border border-neutral-300 px-4 py-3 text-base outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-neutral-700 dark:bg-neutral-900 dark:focus:ring-blue-900"
         />
         {!indexReady && (
           <span className="text-xs text-neutral-400">加载词库索引…</span>

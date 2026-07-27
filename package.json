@@ -15,9 +15,15 @@
     "books:compile": "tsx scripts/compile-books.ts",
     "content:validate": "tsx scripts/validate-content.ts public",
     "content:freshness": "tsx scripts/check-freshness.ts public 365",
-    "quality-gate": "tsx scripts/quality-gate.ts"
+    "quality-gate": "tsx scripts/quality-gate.ts",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": "eslint --fix"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^4.0.20",
+    "ai": "^7.0.37",
     "dexie": "^4.4.4",
     "nanoid": "^6.0.0",
     "next": "16.2.12",
@@ -38,8 +44,10 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.12",
     "fake-indexeddb": "^6.2.5",
+    "husky": "^9.1.7",
     "js-yaml": "^5.2.2",
     "jsdom": "^30.0.0",
+    "lint-staged": "^17.2.0",
     "tailwindcss": "^4",
     "tsx": "^4.23.1",
     "typescript": "^5",

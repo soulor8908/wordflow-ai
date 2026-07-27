@@ -1,0 +1,55 @@
+# Quality Gate CI（设计文档 §8.4）
+# 触发：push 到 main/develop，路径过滤（app/components/lib/public/__tests__/scripts/ 变更才触发）
+# Job 1: quality-gate（lint + typecheck + test + content:validate + content:freshness）
+name: quality-gate
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "app/**"
+      - "components/**"
+      - "lib/**"
+      - "public/**"
+      - "__tests__/**"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "next.config.ts"
+      - "vitest.config.ts"
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Content validate (zod + G1-G7)
+        run: npm run content:validate
+
+      - name: Content freshness
+        run: npm run content:freshness
+
+      - name: Lint (--max-warnings 0)
+        run: npm run lint
+
+      - name: Typecheck (strict)
+        run: npm run typecheck
+
+      - name: Unit tests (Vitest)
+        run: npm test
+
+      - name: Build
+        run: npm run build

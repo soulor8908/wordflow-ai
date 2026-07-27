@@ -17,6 +17,7 @@ import {
   getNotificationMuted,
   setNotificationMuted,
 } from "@/lib/pwa/notification-settings";
+import { Button } from "@/components/ui/button";
 
 export default function PwaSettings() {
   const [swReady, setSwReady] = useState(false);
@@ -113,24 +114,27 @@ export default function PwaSettings() {
               {permissionLabel[permission]}
             </span>
             {permission !== "granted" && permission !== "unsupported" && (
-              <button
+              <Button
                 type="button"
                 onClick={handleRequestPermission}
                 disabled={busy || permission === "denied"}
-                className="rounded border border-blue-500 px-2 py-0.5 text-xs text-blue-600 hover:bg-blue-50 disabled:opacity-50 dark:hover:bg-blue-950"
+                variant="ghost"
+                size="sm"
               >
                 开启
-              </button>
+              </Button>
             )}
           </div>
         </li>
         <li className="flex items-center justify-between">
           <span className="text-neutral-500">通知静默</span>
-          <button
+          <Button
             type="button"
             onClick={handleToggleMute}
             disabled={busy}
             aria-pressed={muted}
+            variant={muted ? "secondary" : "ghost"}
+            size="sm"
             className={
               muted
                 ? "rounded-full bg-neutral-700 px-3 py-1 text-xs text-white"
@@ -138,7 +142,7 @@ export default function PwaSettings() {
             }
           >
             {muted ? "已静默" : "开启中"}
-          </button>
+          </Button>
         </li>
       </ul>
     </section>

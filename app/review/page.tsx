@@ -19,6 +19,7 @@ import { findEntry, type DictEntry } from "@/lib/dict/dict-loader";
 import type { Rating } from "@/lib/review/fsrs-scheduler";
 import { recordStudy } from "@/lib/stats/streak-io";
 import { todayLocalDate } from "@/lib/review/book-queue";
+import { Button } from "@/components/ui/button";
 
 /** MVP 默认词书；词书选择 UI 属 Week 4 */
 const DEFAULT_BOOK_ID = "kaoyan-core";
@@ -214,11 +215,12 @@ export default function ReviewPage() {
       </div>
 
       {/* 卡片 */}
-      <button
+      <Button
         type="button"
         onClick={flip}
         disabled={submitting}
         aria-label={flipped ? "点击返回正面" : "点击翻面查看释义"}
+        variant="ghost"
         className="mt-6 flex min-h-[18rem] flex-1 flex-col items-center justify-center gap-4 rounded-2xl border border-neutral-200 bg-white px-6 py-8 text-center shadow-sm dark:border-neutral-800 dark:bg-neutral-950"
       >
         {!flipped ? (
@@ -236,7 +238,7 @@ export default function ReviewPage() {
         ) : (
           <CardBack word={word} entry={entry} loading={entryLoading} />
         )}
-      </button>
+      </Button>
 
       {/* 反馈按钮 */}
       <div className="mt-6 flex flex-col gap-2">
@@ -308,7 +310,7 @@ function CardBack({
           <span className="text-sm italic text-neutral-400">{entry.pos}</span>
         )}
         {typeof window !== "undefined" && "speechSynthesis" in window && (
-          <button
+          <Button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
@@ -316,11 +318,12 @@ function CardBack({
               u.lang = "en-US";
               window.speechSynthesis.speak(u);
             }}
-            className="rounded border border-neutral-300 px-2 py-0.5 text-xs hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-900"
+            variant="secondary"
+            size="sm"
             aria-label={`发音 ${entry.word}`}
           >
             🔊
-          </button>
+          </Button>
         )}
       </div>
       <p className="text-base leading-relaxed text-neutral-800 dark:text-neutral-200">
@@ -373,18 +376,19 @@ function RatingButton({
       "border-green-400 text-green-600 hover:bg-green-50 dark:hover:bg-green-950",
   };
   return (
-    <button
+    <Button
       type="button"
       onClick={onClick}
       onPointerDown={onPointerDown}
       onPointerUp={onPointerUp}
       onPointerLeave={onPointerLeave}
       disabled={disabled}
-      className={`flex flex-col items-center gap-0.5 rounded-lg border-2 py-3 text-base font-medium transition-colors disabled:opacity-50 ${colorClasses[color]}`}
+      variant="secondary"
+      className={`flex flex-col items-center gap-0.5 rounded-lg border-2 py-3 text-base font-medium transition-colors ${colorClasses[color]}`}
     >
       <span>{label}</span>
       <span className="text-[10px] opacity-60">{hint}</span>
-    </button>
+    </Button>
   );
 }
 

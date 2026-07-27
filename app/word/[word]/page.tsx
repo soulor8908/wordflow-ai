@@ -14,6 +14,7 @@ import {
   isFavorited,
   unfavoriteWord,
 } from "@/lib/review/favorite";
+import { Button } from "@/components/ui/button";
 
 export default function WordPage({
   params,
@@ -87,19 +88,21 @@ export default function WordPage({
         <Link href="/" className="text-sm text-blue-600 hover:underline">
           ← 返回查词
         </Link>
-        <button
+        <Button
           type="button"
           onClick={handleToggleFavorite}
           disabled={toggling}
           aria-pressed={favorited}
+          variant={favorited ? "secondary" : "primary"}
+          size="md"
           className={
             favorited
-              ? "rounded-lg border border-green-500 px-4 py-2 text-sm font-medium text-green-600 hover:bg-green-50 dark:hover:bg-green-950"
-              : "rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              ? "border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-950"
+              : ""
           }
         >
           {favorited ? "✓ 已在队列，明天复习" : "＋ 收藏入队"}
-        </button>
+        </Button>
       </div>
 
       {/* 单词 + 音标 + 发音 */}
@@ -111,18 +114,19 @@ export default function WordPage({
               {entry.phonetic}
             </span>
             {typeof window !== "undefined" && "speechSynthesis" in window && (
-              <button
+              <Button
                 type="button"
                 onClick={() => {
                   const u = new SpeechSynthesisUtterance(entry.word);
                   u.lang = "en-US";
                   window.speechSynthesis.speak(u);
                 }}
-                className="rounded border border-neutral-300 px-2 py-0.5 text-xs hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-900"
+                variant="secondary"
+                size="sm"
                 aria-label={`发音 ${entry.word}`}
               >
                 🔊 发音
-              </button>
+              </Button>
             )}
           </div>
         )}

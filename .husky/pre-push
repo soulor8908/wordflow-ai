@@ -1,0 +1,17 @@
+# husky pre-push 4 层门禁（设计文档 §8.2）
+# lint-staged 暂存文件 lint → typecheck → test → quality-gate 全量
+# 杜绝部署失败连环事故
+
+echo "▶ [pre-push] 门禁 1/4: typecheck"
+npx tsc --noEmit || { echo "✗ typecheck 失败"; exit 1; }
+
+echo "▶ [pre-push] 门禁 2/4: test"
+npx vitest run || { echo "✗ test 失败"; exit 1; }
+
+echo "▶ [pre-push] 门禁 3/4: lint"
+npx eslint || { echo "✗ lint 失败"; exit 1; }
+
+echo "▶ [pre-push] 门禁 4/4: quality-gate 全量"
+npx tsx scripts/quality-gate.ts || { echo "✗ quality-gate 失败"; exit 1; }
+
+echo "✅ [pre-push] 全部门禁通过"
