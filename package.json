@@ -9,7 +9,10 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dict:seed": "tsx scripts/seed-sample-dict.ts public",
+    "dict:compile": "tsx scripts/compile-dict.ts",
+    "books:compile": "tsx scripts/compile-books.ts"
   },
   "dependencies": {
     "dexie": "^4.4.4",
@@ -33,6 +36,7 @@
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^30.0.0",
     "tailwindcss": "^4",
+    "tsx": "^4.23.1",
     "typescript": "^5",
     "vitest": "^1.6.1"
   }
