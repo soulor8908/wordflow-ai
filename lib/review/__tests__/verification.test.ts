@@ -1,9 +1,5 @@
 import { describe, test, expect } from "vitest";
-import {
-  applyVerificationResult,
-  type VerificationState,
-  type VerificationLevel,
-} from "@/lib/review/verification";
+import { applyVerificationResult } from "@/lib/review/verification";
 
 describe("applyVerificationResult", () => {
   test("unverified + pass V1 → V1", () => {

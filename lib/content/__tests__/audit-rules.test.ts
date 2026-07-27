@@ -7,7 +7,6 @@ import {
   auditG5,
   auditG6,
   auditG7,
-  type AuditResult,
 } from "@/lib/content/audit-rules";
 
 describe("G1: book words exist in dictionary", () => {
