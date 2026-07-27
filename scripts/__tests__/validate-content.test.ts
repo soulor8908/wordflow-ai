@@ -128,7 +128,7 @@ describe("validateContent", () => {
     expect(result.errors).toHaveLength(1);
   });
 
-  test("词书引用不存在的词 → errors 非空", () => {
+  test("词书引用不存在的词 → G1 降级为 warning，不阻塞 passed", () => {
     const dir = setupFixture();
     // 覆盖词书，加入不存在的词
     const book: WordBook = {
@@ -149,7 +149,9 @@ describe("validateContent", () => {
     );
     const result = validateContent(dir);
     expect(result.total).toBe(2);
-    expect(result.passed).toBe(1);
-    expect(result.errors.some((e) => e.includes("nonexistent-xyz"))).toBe(true);
+    // G1 降级为 warning 后，词书仍算通过（translation 完整即可）
+    expect(result.passed).toBe(2);
+    // G1 不再写入 errors
+    expect(result.errors.some((e) => e.includes("nonexistent-xyz"))).toBe(false);
   });
 });

@@ -84,7 +84,10 @@ export function validateContent(publicDir: string): ValidateContentResult {
   }
 
   const dictWords = collectDictWords(dictDir);
-  const bookFiles = readdirSync(booksDir).filter((f) => f.endsWith(".json"));
+  // 仅校验词书文件，跳过 index.json（词库索引 manifest，非词书）
+  const bookFiles = readdirSync(booksDir).filter(
+    (f) => f.endsWith(".json") && f !== "index.json"
+  );
 
   for (const f of bookFiles) {
     total++;
@@ -104,9 +107,21 @@ export function validateContent(publicDir: string): ValidateContentResult {
       continue;
     }
     const auditResults = validateBook(schemaResult.data, dictWords);
-    const bookErrors = auditResults.flatMap((r) => r.errors);
-    if (bookErrors.length > 0) {
-      errors.push(`${f}: ${bookErrors.join("; ")}`);
+    // G1（词书词在词典切片中）降级为 warning：词书自带 translation，
+    // 词典切片是按需加载的样本，词书词不必全部在切片里（词条页会兜底显示词书释义）
+    const blockingErrors = auditResults
+      .filter((r) => r.rule !== "G1")
+      .flatMap((r) => r.errors);
+    const g1Warnings = auditResults
+      .filter((r) => r.rule === "G1" && !r.passed)
+      .flatMap((r) => r.errors);
+    if (g1Warnings.length > 0) {
+      console.log(
+        `  ⚠ ${f}: ${g1Warnings.length} 词不在词典切片中（warning，不阻塞）`
+      );
+    }
+    if (blockingErrors.length > 0) {
+      errors.push(`${f}: ${blockingErrors.join("; ")}`);
     } else {
       passed++;
     }
