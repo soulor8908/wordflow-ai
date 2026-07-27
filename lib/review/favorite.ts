@@ -10,7 +10,8 @@
 import { getItem, setItem, delItem } from "@/lib/storage/db";
 import { createNewCard, type WordCard } from "@/lib/review/fsrs-scheduler";
 
-function cardKey(word: string): string {
+/** 卡片存储 key（小写，大小写无关去重）。导出供 review-session 等模块复用，避免 key 散落 */
+export function cardKey(word: string): string {
   return `card:${word.toLowerCase()}`;
 }
 

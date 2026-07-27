@@ -30,7 +30,7 @@ export async function getDb() {
   return _dbPromise;
 }
 
-/** 提取 value 中的索引字段（updatedAt / dueAt） */
+/** 提取 value 中的索引字段（updatedAt / dueAt），兼容 string 与 Date（ts-fsrs 的 due 为 Date） */
 function extractIndexFields(value: unknown): {
   updatedAt?: string;
   dueAt?: string;
@@ -39,7 +39,10 @@ function extractIndexFields(value: unknown): {
     const v = value as Record<string, unknown>;
     const result: { updatedAt?: string; dueAt?: string } = {};
     if (typeof v.updatedAt === "string") result.updatedAt = v.updatedAt;
+    else if (v.updatedAt instanceof Date)
+      result.updatedAt = v.updatedAt.toISOString();
     if (typeof v.due === "string") result.dueAt = v.due;
+    else if (v.due instanceof Date) result.dueAt = v.due.toISOString();
     return result;
   }
   return {};

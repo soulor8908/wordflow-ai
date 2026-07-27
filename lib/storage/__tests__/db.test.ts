@@ -41,6 +41,15 @@ describe("getItem / setItem", () => {
     const record = await db.kv.get("card:test");
     expect(record?.dueAt).toBe("2026-07-28T00:00:00Z");
   });
+
+  test("setItem with due as Date object extracts ISO string to dueAt (ts-fsrs 兼容)", async () => {
+    const dueDate = new Date("2026-07-28T00:00:00Z");
+    await setItem("card:dt", { word: "dt", due: dueDate });
+    const { getDb } = await import("@/lib/storage/db");
+    const db = await getDb();
+    const record = await db.kv.get("card:dt");
+    expect(record?.dueAt).toBe(dueDate.toISOString());
+  });
 });
 
 describe("delItem", () => {
