@@ -19,12 +19,10 @@ import { findEntry, type DictEntry } from "@/lib/dict/dict-loader";
 import type { Rating } from "@/lib/review/fsrs-scheduler";
 import { recordStudy } from "@/lib/stats/streak-io";
 import { todayLocalDate } from "@/lib/review/book-queue";
+import { getActiveBook } from "@/lib/review/active-book";
 import { Button } from "@/components/ui/button";
 
-/** MVP 默认词书；词书选择 UI 属 Week 4 */
-const DEFAULT_BOOK_ID = "kaoyan-core";
-
-type Phase = "loading" | "reviewing" | "done";
+type Phase = "loading" | "reviewing" | "done" | "no-book";
 
 export default function ReviewPage() {
   const [phase, setPhase] = useState<Phase>("loading");
@@ -42,10 +40,16 @@ export default function ReviewPage() {
     let cancelled = false;
     (async () => {
       try {
+        const active = await getActiveBook();
+        if (cancelled) return;
+        if (!active) {
+          setPhase("no-book");
+          return;
+        }
         const now = new Date();
         const [dueCards, newWords] = await Promise.all([
           listDueCards(now),
-          getTodayNewWords(DEFAULT_BOOK_ID).catch(
+          getTodayNewWords(active.bookId).catch(
             () => [] as NewWordCandidate[]
           ),
         ]);
@@ -179,6 +183,23 @@ export default function ReviewPage() {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-2xl items-center justify-center px-4">
         <p className="text-sm text-neutral-400">正在加载今日复习队列…</p>
+      </main>
+    );
+  }
+
+  if (phase === "no-book") {
+    return (
+      <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col items-center justify-center gap-4 px-4 py-10 text-center">
+        <h1 className="text-2xl font-bold">还没有选择词库</h1>
+        <p className="text-sm text-neutral-500">
+          先选一个词库，系统会按 FSRS 算法为你安排每日新词与复习
+        </p>
+        <Link
+          href="/books"
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+        >
+          去选词库
+        </Link>
       </main>
     );
   }

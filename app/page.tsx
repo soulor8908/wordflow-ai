@@ -15,6 +15,8 @@ import { useSearch } from "@/lib/search/use-search";
 import { countDueCards } from "@/lib/storage/db";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import OnboardingDialog from "./onboarding-dialog";
+import { getActiveBook } from "@/lib/review/active-book";
 
 /** 词频 → 星级（1-5 星，对齐 ECDICT collins 星级） */
 function frequencyToStars(freq: number): string {
@@ -29,18 +31,37 @@ export default function HomePage() {
   const { query, setQuery, results, loading, indexReady } = useSearch(8);
   const inputRef = useRef<HTMLInputElement>(null);
   const [dueCount, setDueCount] = useState<number | null>(null);
+  const [activeBookId, setActiveBookId] = useState<string | null>(null);
+  const [activeBookName, setActiveBookName] = useState<string | null>(null);
 
   // 打开即聚焦
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
-  // 今日待复习数量（首屏加载一次）
+  // 今日待复习数量 + 当前词库（首屏加载一次）
   useEffect(() => {
     countDueCards(new Date().toISOString())
       .then((n) => setDueCount(n))
       .catch(() => setDueCount(0));
+    getActiveBook()
+      .then((ab) => {
+        setActiveBookId(ab?.bookId ?? null);
+      })
+      .catch(() => setActiveBookId(null));
   }, []);
+
+  // 监听 onboarding 选择完成，刷新当前词库显示
+  useEffect(() => {
+    if (!activeBookId) return;
+    import("@/lib/content/book-index")
+      .then(({ loadBookIndex }) => loadBookIndex())
+      .then((books) => {
+        const b = books.find((x) => x.id === activeBookId);
+        if (b) setActiveBookName(b.name);
+      })
+      .catch(() => setActiveBookName(null));
+  }, [activeBookId]);
 
   const hasQuery = query.trim().length > 0;
   // 清除按钮直接从 query 派生，避免 effect 内 setState
@@ -49,11 +70,31 @@ export default function HomePage() {
     !hasQuery && dueCount !== null && dueCount === 0 && indexReady;
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-6 px-4 py-10">
+    <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-6 px-4 py-10 pb-24">
+      {/* 首次访问弹窗：检测未选词库时自动弹出 */}
+      <OnboardingDialog />
+
       <header className="text-center">
         <h1 className="text-3xl font-bold tracking-tight">WordFlow</h1>
         <p className="mt-1 text-sm text-neutral-500">查词即背词 · 本地优先 · 离线可用</p>
       </header>
+
+      {/* 当前词库显示 + 切换入口 */}
+      {activeBookName && (
+        <Link
+          href="/books"
+          className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm dark:border-blue-900 dark:bg-blue-950"
+        >
+          <span className="flex items-center gap-2">
+            <span className="text-blue-500">📖</span>
+            <span className="text-neutral-600 dark:text-neutral-300">当前词库</span>
+            <span className="font-medium text-blue-700 dark:text-blue-300">
+              {activeBookName}
+            </span>
+          </span>
+          <span className="text-xs text-neutral-400">切换 →</span>
+        </Link>
+      )}
 
       {/* 今日待复习提醒：修复 flex 布局，让"统计"链接真正靠右 */}
       <div className="flex items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm dark:border-neutral-800 dark:bg-neutral-900">

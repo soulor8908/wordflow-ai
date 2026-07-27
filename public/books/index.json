@@ -1,0 +1,40 @@
+{
+  "books": [
+    {
+      "id": "cet4-core",
+      "name": "CET-4 大学英语四级核心词",
+      "description": "大学英语四级高频核心词汇，覆盖听读写译高频词",
+      "level": "CET-4",
+      "wordCount": 40,
+      "dailyNew": 20,
+      "color": "blue"
+    },
+    {
+      "id": "cet6-core",
+      "name": "CET-6 大学英语六级核心词",
+      "description": "大学英语六级进阶词汇，覆盖学术、商务、社会话题高频词",
+      "level": "CET-6",
+      "wordCount": 40,
+      "dailyNew": 20,
+      "color": "purple"
+    },
+    {
+      "id": "gaokao-core",
+      "name": "高考英语核心词",
+      "description": "高考英语3500词精选，覆盖初高中阶段高频核心词",
+      "level": "高考",
+      "wordCount": 40,
+      "dailyNew": 25,
+      "color": "green"
+    },
+    {
+      "id": "kaoyan-core",
+      "name": "考研核心词",
+      "description": "考研英语高频核心词汇，覆盖历年真题高频词与学术词汇",
+      "level": "考研",
+      "wordCount": 40,
+      "dailyNew": 20,
+      "color": "orange"
+    }
+  ]
+}

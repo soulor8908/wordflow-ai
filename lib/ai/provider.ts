@@ -25,7 +25,7 @@ export interface AiSessionConfig {
 
 export type AiErrorClass = "upstream-auth" | "upstream-other" | "local";
 
-const PROVIDER_CONFIGS: Record<ProviderName, ProviderConfig> = {
+export const PROVIDER_CONFIGS: Record<ProviderName, ProviderConfig> = {
   glm: {
     baseURL: "https://open.bigmodel.cn/api/paas/v4",
     defaultModel: "glm-4-flash",

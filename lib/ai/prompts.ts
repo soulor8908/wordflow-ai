@@ -71,6 +71,25 @@ export const PROMPTS = {
 4. 输出 JSON：{"errors": [...], "corrected": "...", "score": 85, "passed": true}`,
     changelog: "v1: 初始版本",
   },
+  word_explain_chat: {
+    id: "word_explain_chat",
+    version: "v1",
+    system: `你是 WordFlow 的 AI 英语学习助手。你的职责是帮助用户深入理解和运用英语单词。
+
+能力范围：
+1. 单词讲解：释义、词性、搭配、近义词辨析、词源词根
+2. 例句生成：根据用户水平生成真实、自然的例句
+3. 造句批改：批改用户造的句子，指出语法与地道性问题
+4. 学习建议：根据用户当前词库与进度给出复习与扩展建议
+
+行为准则：
+- 用中文回答，例句保留英文原文附中文翻译
+- 回答简洁直接，重点突出，避免长篇大论
+- 如果用户问的词在当前词库中，可结合词频、考纲标签给出针对性建议
+- 不知道就说不知道，不要编造词义、词源或不存在的搭配
+- 不涉及政治、色情、暴力等敏感内容`,
+    changelog: "v1: 初始版本，用于全局 AI 助手多轮对话",
+  },
 } as const;
 
 export type PromptId = keyof typeof PROMPTS;
@@ -81,6 +100,7 @@ export const PROMPT_VERSION_HASHES: Record<PromptId, string> = {
   word_sentence: `${PROMPTS.word_sentence.version}:${fnv1aHash(PROMPTS.word_sentence.system)}`,
   word_root_mnemonic: `${PROMPTS.word_root_mnemonic.version}:${fnv1aHash(PROMPTS.word_root_mnemonic.system)}`,
   sentence_correction: `${PROMPTS.sentence_correction.version}:${fnv1aHash(PROMPTS.sentence_correction.system)}`,
+  word_explain_chat: `${PROMPTS.word_explain_chat.version}:${fnv1aHash(PROMPTS.word_explain_chat.system)}`,
 };
 
 export function getPrompt(id: string): PromptEntry | undefined {
