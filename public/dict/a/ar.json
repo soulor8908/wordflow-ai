@@ -1,0 +1,70 @@
+[
+  {
+    "phonetic": "/ˈɑːɡjuː/",
+    "definition": "to disagree with someone in words; to give reasons for something",
+    "examples": [
+      {
+        "en": "They argue about money.",
+        "zh": "他们为钱争吵。"
+      }
+    ],
+    "synonyms": [
+      "dispute",
+      "debate",
+      "contend"
+    ],
+    "word": "argue",
+    "pos": "v.",
+    "translation": "vt. 争论；主张",
+    "frequency": 3600,
+    "tags": [
+      "cet4-core"
+    ]
+  },
+  {
+    "phonetic": "/əˈreɪndʒ/",
+    "definition": "to organize or plan something",
+    "root": "ar-（向）+ -range（行）→ 排成行",
+    "examples": [
+      {
+        "en": "She arranged the flowers beautifully.",
+        "zh": "她把花插得很漂亮。"
+      }
+    ],
+    "synonyms": [
+      "organize",
+      "plan",
+      "sort"
+    ],
+    "word": "arrange",
+    "pos": "v.",
+    "translation": "vt. 安排；布置",
+    "frequency": 2800,
+    "tags": [
+      "cet4-core"
+    ]
+  },
+  {
+    "phonetic": "/əˈraɪv/",
+    "definition": "to reach a place at the end of a journey",
+    "root": "ar-（向）+ -rive（岸）→ 抵岸",
+    "examples": [
+      {
+        "en": "We arrived at the station at 8.",
+        "zh": "我们8点到车站。"
+      }
+    ],
+    "synonyms": [
+      "reach",
+      "come",
+      "get to"
+    ],
+    "word": "arrive",
+    "pos": "v.",
+    "translation": "vi. 到达；抵达",
+    "frequency": 5000,
+    "tags": [
+      "cet4-core"
+    ]
+  }
+]

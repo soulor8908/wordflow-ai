@@ -21,6 +21,7 @@ import { recordStudy } from "@/lib/stats/streak-io";
 import { todayLocalDate } from "@/lib/review/book-queue";
 import { getActiveBook } from "@/lib/review/active-book";
 import { Button } from "@/components/ui/button";
+import { TrophyIcon, VolumeIcon } from "@/components/ui/icons";
 
 type Phase = "loading" | "reviewing" | "done" | "no-book";
 
@@ -343,7 +344,7 @@ function CardBack({
             size="sm"
             aria-label={`发音 ${entry.word}`}
           >
-            🔊
+            <VolumeIcon title="发音" className="h-4 w-4" />
           </Button>
         )}
       </div>
@@ -441,7 +442,10 @@ function DoneScreen({
         </>
       ) : (
         <>
-          <h1 className="text-3xl font-bold">🎉 复习完成</h1>
+          <h1 className="flex items-center justify-center gap-2 text-3xl font-bold">
+            <TrophyIcon title="完成" className="h-7 w-7 text-amber-500" />
+            <span>复习完成</span>
+          </h1>
           <p className="text-sm text-neutral-500">
             今日完成 {reviewed} 张 · 新学 {newCount} 张 · 复习 {reviewCount} 张
           </p>
@@ -488,14 +492,14 @@ function Stat({
 function Encouragement({ reviewed, newCount }: { reviewed: number; newCount: number }) {
   const message =
     reviewed >= 50
-      ? "🔥 今日超神！坚持是这个 App 唯一的秘籍"
+      ? "今日超神！坚持是这个 App 唯一的秘籍"
       : reviewed >= 20
-        ? "💪 又前进了一步，记忆正在变成长期记忆"
+        ? "又前进了一步，记忆正在变成长期记忆"
         : reviewed >= 10
-          ? "🌱 今天的积累，会成为明天的本能"
+          ? "今天的积累，会成为明天的本能"
           : newCount > 0
-            ? "✨ 新词已入队，FSRS 会在最佳时机让它重现"
-            : "👋 完成今日复习，明天见";
+            ? "新词已入队，FSRS 会在最佳时机让它重现"
+            : "完成今日复习，明天见";
   return (
     <p className="text-sm font-medium text-blue-600 dark:text-blue-400">
       {message}

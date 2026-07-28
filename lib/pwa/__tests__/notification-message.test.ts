@@ -11,7 +11,7 @@ describe("buildNotificationMessage", () => {
       daysSinceLastStudy: 0,
     };
     const result = buildNotificationMessage(input);
-    expect(result?.title).toBe("📚 今日有 5 词待复习");
+    expect(result?.title).toBe("今日有 5 词待复习");
     expect(result?.body).toContain("5");
     expect(result?.url).toBe("/review");
   });
@@ -22,7 +22,7 @@ describe("buildNotificationMessage", () => {
       daysSinceLastStudy: 1,
     };
     const result = buildNotificationMessage(input);
-    expect(result?.title).toBe("📚 今日有 3 词待复习");
+    expect(result?.title).toBe("今日有 3 词待复习");
   });
 
   test("returns 'come back' message when 3 days since last study", () => {

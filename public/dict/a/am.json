@@ -1,0 +1,93 @@
+[
+  {
+    "phonetic": "/æmˈbɪɡjuəs/",
+    "definition": "having more than one possible meaning; unclear",
+    "root": "ambi-（双）+ -gu（走）+ -ous → 走两路",
+    "examples": [
+      {
+        "en": "His answer was ambiguous.",
+        "zh": "他的回答含糊不清。"
+      }
+    ],
+    "synonyms": [
+      "vague",
+      "unclear",
+      "equivocal"
+    ],
+    "word": "ambiguous",
+    "pos": "adj.",
+    "translation": "adj. 模糊的；引起歧义的",
+    "frequency": 1400,
+    "tags": [
+      "cet6-core"
+    ]
+  },
+  {
+    "phonetic": "/əˈmend/",
+    "definition": "to change a law or document to improve it",
+    "root": "a-（向）+ -mend（错）→ 改错",
+    "examples": [
+      {
+        "en": "They amended the constitution.",
+        "zh": "他们修改了宪法。"
+      }
+    ],
+    "synonyms": [
+      "revise",
+      "modify",
+      "correct"
+    ],
+    "word": "amend",
+    "pos": "v.",
+    "translation": "vt. 修改；修正",
+    "frequency": 1200,
+    "tags": [
+      "cet6-core"
+    ]
+  },
+  {
+    "phonetic": "/əˈmaʊnt/",
+    "definition": "a quantity of something; the total",
+    "examples": [
+      {
+        "en": "A large amount of money was spent.",
+        "zh": "花了一大笔钱。"
+      }
+    ],
+    "synonyms": [
+      "quantity",
+      "sum",
+      "total"
+    ],
+    "word": "amount",
+    "pos": "n.",
+    "translation": "n. 数量；总额",
+    "frequency": 4400,
+    "tags": [
+      "cet4-core"
+    ]
+  },
+  {
+    "phonetic": "/ˈæmpl/",
+    "definition": "more than enough; large",
+    "root": "am-（围绕）+ -ple（满）→ 充满",
+    "examples": [
+      {
+        "en": "There is ample time to finish.",
+        "zh": "有充足的时间完成。"
+      }
+    ],
+    "synonyms": [
+      "plentiful",
+      "abundant",
+      "sufficient"
+    ],
+    "word": "ample",
+    "pos": "adj.",
+    "translation": "adj. 充足的；宽敞的",
+    "frequency": 1100,
+    "tags": [
+      "cet6-core"
+    ]
+  }
+]

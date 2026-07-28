@@ -1,0 +1,25 @@
+[
+  {
+    "phonetic": "/iːsˈθetɪk/",
+    "definition": "relating to beauty and art; pleasing to look at",
+    "root": "aesthes-（感觉）+ -tic → 美感",
+    "examples": [
+      {
+        "en": "The building has great aesthetic appeal.",
+        "zh": "这栋建筑有很强的美感。"
+      }
+    ],
+    "synonyms": [
+      "artistic",
+      "tasteful",
+      "beautiful"
+    ],
+    "word": "aesthetic",
+    "pos": "adj.",
+    "translation": "adj. 美学的；审美的",
+    "frequency": 1200,
+    "tags": [
+      "cet6-core"
+    ]
+  }
+]

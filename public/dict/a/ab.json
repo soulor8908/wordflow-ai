@@ -1,1 +1,410 @@
-[{"word":"about","phonetic":"/əˈbaʊt/","pos":"prep.","translation":"prep. 关于；大约  adv. 大约；周围","definition":"on the subject of; approximately","frequency":9000,"tags":["cet4"]},{"word":"abandon","phonetic":"/əˈbændən/","pos":"v.","translation":"vt. 放弃；抛弃；离弃","definition":"to leave completely and finally","frequency":5000,"tags":["kaoyan","cet4","cet6"],"root":"ab-（离开）+ -bandon（控制）→ 失去控制而离开","examples":[{"en":"The crew abandoned the sinking ship.","zh":"船员们弃下沉没的船。"},{"en":"He abandoned his plan to travel.","zh":"他放弃了旅行计划。"}],"synonyms":["desert","forsake","give up"]},{"word":"ability","phonetic":"/əˈbɪləti/","pos":"n.","translation":"n. 能力；才能；本领","definition":"the power or skill to do something","frequency":4800,"tags":["cet4","cet6"],"examples":[{"en":"She has the ability to learn quickly.","zh":"她有快速学习的能力。"}],"synonyms":["capability","skill","competence"]},{"word":"abroad","phonetic":"/əˈbrɔːd/","pos":"adv.","translation":"adv. 到国外；在国外","frequency":1200,"tags":["cet4","cet6"],"synonyms":["overseas","overseas"]},{"word":"abound","phonetic":"/əˈbaʊnd/","pos":"v.","translation":"vi. 充满；大量存在","frequency":800,"tags":["toefl"],"examples":[{"en":"Wild animals abound in this forest.","zh":"这片森林里野生动物很多。"}]}]
+[
+  {
+    "word": "abandon",
+    "phonetic": "/əˈbændən/",
+    "pos": "v.",
+    "translation": "vt. 放弃；抛弃",
+    "definition": "to leave completely and finally",
+    "frequency": 5000,
+    "tags": [
+      "kaoyan",
+      "cet4",
+      "cet6",
+      "cet4-core",
+      "gaokao-core",
+      "kaoyan-core"
+    ],
+    "root": "ab-（离开）+ -bandon（控制）→ 失去控制而离开",
+    "examples": [
+      {
+        "en": "The crew abandoned the sinking ship.",
+        "zh": "船员们弃下沉没的船。"
+      },
+      {
+        "en": "He abandoned his plan to travel.",
+        "zh": "他放弃了旅行计划。"
+      }
+    ],
+    "synonyms": [
+      "desert",
+      "forsake",
+      "give up"
+    ]
+  },
+  {
+    "word": "ability",
+    "phonetic": "/əˈbɪləti/",
+    "pos": "n.",
+    "translation": "n. 能力；才能",
+    "definition": "the power or skill to do something",
+    "frequency": 4800,
+    "tags": [
+      "cet4",
+      "cet6",
+      "cet4-core",
+      "gaokao-core",
+      "kaoyan-core"
+    ],
+    "examples": [
+      {
+        "en": "She has the ability to learn quickly.",
+        "zh": "她有快速学习的能力。"
+      }
+    ],
+    "synonyms": [
+      "capability",
+      "skill",
+      "competence"
+    ]
+  },
+  {
+    "phonetic": "/ˈeɪbl/",
+    "definition": "having the skill, strength, or knowledge to do something",
+    "root": "abil-（能力）+ -le → 有能力的",
+    "examples": [
+      {
+        "en": "She is able to speak three languages fluently.",
+        "zh": "她能流利地说三种语言。"
+      },
+      {
+        "en": "Will you be able to come to the meeting?",
+        "zh": "你能来开会吗？"
+      }
+    ],
+    "synonyms": [
+      "capable",
+      "competent",
+      "skilled"
+    ],
+    "word": "able",
+    "pos": "adj.",
+    "translation": "adj. 能干的；能够的",
+    "frequency": 7000,
+    "tags": [
+      "gaokao-core"
+    ]
+  },
+  {
+    "phonetic": "/æbˈnɔːrml/",
+    "definition": "different from what is usual or expected",
+    "root": "ab-（偏离）+ norm（规范）+ -al → 偏离规范的",
+    "examples": [
+      {
+        "en": "The abnormal weather caused crop failures.",
+        "zh": "反常的天气导致农作物歉收。"
+      }
+    ],
+    "synonyms": [
+      "unusual",
+      "irregular",
+      "anomalous"
+    ],
+    "word": "abnormal",
+    "pos": "adj.",
+    "translation": "adj. 反常的；异常的",
+    "frequency": 1400,
+    "tags": [
+      "kaoyan-core"
+    ]
+  },
+  {
+    "phonetic": "/əˈbɒlɪʃ/",
+    "definition": "to officially end a law, system, or institution",
+    "root": "ab-（离开）+ -olish（破坏）→ 废除",
+    "examples": [
+      {
+        "en": "The government abolished the tax in 2010.",
+        "zh": "政府在2010年废除了这项税收。"
+      }
+    ],
+    "synonyms": [
+      "eliminate",
+      "annul",
+      "nullify"
+    ],
+    "word": "abolish",
+    "pos": "v.",
+    "translation": "vt. 废除；取消",
+    "frequency": 1400,
+    "tags": [
+      "cet6-core",
+      "kaoyan-core"
+    ]
+  },
+  {
+    "word": "abound",
+    "phonetic": "/əˈbaʊnd/",
+    "pos": "v.",
+    "translation": "vi. 充满；大量存在",
+    "frequency": 800,
+    "tags": [
+      "toefl"
+    ],
+    "examples": [
+      {
+        "en": "Wild animals abound in this forest.",
+        "zh": "这片森林里野生动物很多。"
+      }
+    ]
+  },
+  {
+    "word": "about",
+    "phonetic": "/əˈbaʊt/",
+    "pos": "prep.",
+    "translation": "prep. 关于 adv. 大约",
+    "definition": "on the subject of; approximately",
+    "frequency": 9000,
+    "tags": [
+      "cet4",
+      "gaokao-core"
+    ]
+  },
+  {
+    "phonetic": "/əˈbʌv/",
+    "definition": "in a higher position than something else",
+    "examples": [
+      {
+        "en": "The plane flew above the clouds.",
+        "zh": "飞机在云层上方飞行。"
+      }
+    ],
+    "synonyms": [
+      "over",
+      "on top of"
+    ],
+    "word": "above",
+    "pos": "prep.",
+    "translation": "prep. 在...上方",
+    "frequency": 6000,
+    "tags": [
+      "gaokao-core"
+    ]
+  },
+  {
+    "word": "abroad",
+    "phonetic": "/əˈbrɔːd/",
+    "pos": "adv.",
+    "translation": "adv. 到国外；在国外",
+    "frequency": 1200,
+    "tags": [
+      "cet4",
+      "cet6",
+      "gaokao-core"
+    ],
+    "synonyms": [
+      "overseas",
+      "overseas"
+    ]
+  },
+  {
+    "phonetic": "/əˈbrʌpt/",
+    "definition": "sudden and unexpected, often in an unpleasant way",
+    "root": "ab-（离开）+ -rupt（断）→ 突然断裂",
+    "examples": [
+      {
+        "en": "The meeting came to an abrupt end.",
+        "zh": "会议突然结束了。"
+      }
+    ],
+    "synonyms": [
+      "sudden",
+      "unexpected",
+      "hasty"
+    ],
+    "word": "abrupt",
+    "pos": "adj.",
+    "translation": "adj. 突然的；唐突的",
+    "frequency": 900,
+    "tags": [
+      "cet6-core",
+      "kaoyan-core"
+    ]
+  },
+  {
+    "phonetic": "/ˈæbsəns/",
+    "definition": "the state of not being where you are usually expected to be",
+    "root": "ab-（离开）+ sence（存在）→ 不在场",
+    "examples": [
+      {
+        "en": "His absence from school was noted.",
+        "zh": "他没来上学被记下了。"
+      }
+    ],
+    "synonyms": [
+      "nonattendance",
+      "lack",
+      "want"
+    ],
+    "word": "absence",
+    "pos": "n.",
+    "translation": "n. 缺席；缺乏",
+    "frequency": 2200,
+    "tags": [
+      "kaoyan-core"
+    ]
+  },
+  {
+    "phonetic": "/ˈæbsənt/",
+    "definition": "not present in a place where you should be",
+    "examples": [
+      {
+        "en": "Three students were absent today.",
+        "zh": "今天有三名学生缺席。"
+      }
+    ],
+    "synonyms": [
+      "missing",
+      "away",
+      "truant"
+    ],
+    "word": "absent",
+    "pos": "adj.",
+    "translation": "adj. 缺席的；不在的",
+    "frequency": 2400,
+    "tags": [
+      "gaokao-core"
+    ]
+  },
+  {
+    "phonetic": "/ˈæbsəluːt/",
+    "definition": "complete and total; not limited in any way",
+    "root": "ab-（离开）+ solute（松开）→ 不受约束的",
+    "examples": [
+      {
+        "en": "I have absolute confidence in her.",
+        "zh": "我对她有绝对的信心。"
+      }
+    ],
+    "synonyms": [
+      "complete",
+      "total",
+      "utter"
+    ],
+    "word": "absolute",
+    "pos": "adj.",
+    "translation": "adj. 绝对的；完全的",
+    "frequency": 1800,
+    "tags": [
+      "cet4-core",
+      "gaokao-core",
+      "kaoyan-core"
+    ]
+  },
+  {
+    "phonetic": "/əbˈzɔːb/",
+    "definition": "to take in liquid, gas, or another substance from the surface around something",
+    "root": "ab-（去）+ -sorb（吸取）→ 吸收",
+    "examples": [
+      {
+        "en": "Plants absorb carbon dioxide.",
+        "zh": "植物吸收二氧化碳。"
+      }
+    ],
+    "synonyms": [
+      "soak up",
+      "assimilate",
+      "engulf"
+    ],
+    "word": "absorb",
+    "pos": "v.",
+    "translation": "vt. 吸收；吸引",
+    "frequency": 2400,
+    "tags": [
+      "kaoyan-core"
+    ]
+  },
+  {
+    "phonetic": "/ˈæbstrækt/",
+    "definition": "existing as an idea or concept but not having a physical form",
+    "root": "abs-（从）+ tract（拉）→ 从具体中抽出",
+    "examples": [
+      {
+        "en": "Beauty is an abstract concept.",
+        "zh": "美是一个抽象的概念。"
+      }
+    ],
+    "synonyms": [
+      "theoretical",
+      "conceptual",
+      "nonconcrete"
+    ],
+    "word": "abstract",
+    "pos": "adj.",
+    "translation": "adj. 抽象的 n. 摘要",
+    "frequency": 2200,
+    "tags": [
+      "kaoyan-core"
+    ]
+  },
+  {
+    "phonetic": "/əbˈsɜːd/",
+    "definition": "completely unreasonable or ridiculous",
+    "root": "ab-（向）+ -surd（聋）→ 充耳不闻的",
+    "examples": [
+      {
+        "en": "It would be absurd to spend so much money on a hat.",
+        "zh": "在一顶帽子上花这么多钱太荒谬了。"
+      }
+    ],
+    "synonyms": [
+      "ridiculous",
+      "preposterous",
+      "ludicrous"
+    ],
+    "word": "absurd",
+    "pos": "adj.",
+    "translation": "adj. 荒谬的；可笑的",
+    "frequency": 1100,
+    "tags": [
+      "cet6-core",
+      "kaoyan-core"
+    ]
+  },
+  {
+    "phonetic": "/əˈbʌndənt/",
+    "definition": "existing in large quantities; more than enough",
+    "root": "ab-（远离）+ -und（波浪）→ 溢出的",
+    "examples": [
+      {
+        "en": "The region has abundant natural resources.",
+        "zh": "该地区有丰富的自然资源。"
+      }
+    ],
+    "synonyms": [
+      "plentiful",
+      "ample",
+      "copious"
+    ],
+    "word": "abundant",
+    "pos": "adj.",
+    "translation": "adj. 丰富的；大量的",
+    "frequency": 1800,
+    "tags": [
+      "cet6-core",
+      "kaoyan-core"
+    ]
+  },
+  {
+    "phonetic": "/əˈbjuːz/",
+    "definition": "to use something in a wrong or harmful way",
+    "root": "ab-（偏离）+ -use（用）→ 误用",
+    "examples": [
+      {
+        "en": "He abused his power as mayor.",
+        "zh": "他滥用市长权力。"
+      }
+    ],
+    "synonyms": [
+      "misuse",
+      "mistreat",
+      "exploit"
+    ],
+    "word": "abuse",
+    "pos": "v.",
+    "translation": "vt. 滥用；虐待",
+    "frequency": 2200,
+    "tags": [
+      "kaoyan-core"
+    ]
+  }
+]

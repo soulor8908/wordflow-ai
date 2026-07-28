@@ -1,0 +1,24 @@
+[
+  {
+    "phonetic": "/eɪm/",
+    "definition": "a goal or purpose; to point a weapon at something",
+    "examples": [
+      {
+        "en": "My aim is to become a doctor.",
+        "zh": "我的目标是当医生。"
+      }
+    ],
+    "synonyms": [
+      "goal",
+      "objective",
+      "purpose"
+    ],
+    "word": "aim",
+    "pos": "n.",
+    "translation": "n. 目标 v. 瞄准",
+    "frequency": 3400,
+    "tags": [
+      "cet4-core"
+    ]
+  }
+]

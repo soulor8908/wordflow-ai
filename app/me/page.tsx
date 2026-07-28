@@ -27,6 +27,7 @@ import {
 } from "@/lib/ai/provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { RobotIcon } from "@/components/ui/icons";
 import PwaSettings from "@/app/stats/pwa-settings";
 
 type CardStatus = "due" | "learning" | "mastered";
@@ -348,7 +349,7 @@ function AiConfigSection({
     <section className="rounded-xl border border-neutral-200 px-4 py-4 dark:border-neutral-800">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="flex items-center gap-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">
-          <span>🤖</span> AI 配置
+          <RobotIcon title="AI 配置" className="h-4 w-4" /> AI 配置
         </h2>
         {config && !editing && (
           <div className="flex items-center gap-2">

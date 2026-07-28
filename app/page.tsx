@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import OnboardingDialog from "./onboarding-dialog";
 import { getActiveBook } from "@/lib/review/active-book";
+import { BookIcon, BooksIcon, CloseIcon, PlusIcon, SearchIcon } from "@/components/ui/icons";
 
 /** 词频 → 星级（1-5 星，对齐 ECDICT collins 星级） */
 function frequencyToStars(freq: number): string {
@@ -86,7 +87,7 @@ export default function HomePage() {
           className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm dark:border-blue-900 dark:bg-blue-950"
         >
           <span className="flex items-center gap-2">
-            <span className="text-blue-500">📖</span>
+            <BookIcon title="当前词库" className="h-4 w-4 text-blue-500" />
             <span className="text-neutral-600 dark:text-neutral-300">当前词库</span>
             <span className="font-medium text-blue-700 dark:text-blue-300">
               {activeBookName}
@@ -103,9 +104,10 @@ export default function HomePage() {
         ) : dueCount > 0 ? (
           <Link
             href="/review"
-            className="font-medium text-blue-600 hover:underline"
+            className="flex items-center gap-1.5 font-medium text-blue-600 hover:underline"
           >
-            📚 今日有 {dueCount} 词待复习，去复习 →
+            <BooksIcon title="复习" className="h-4 w-4" />
+            <span>今日有 {dueCount} 词待复习，去复习 →</span>
           </Link>
         ) : (
           <span className="text-neutral-500">暂无到期复习，查个新词吧</span>
@@ -144,7 +146,7 @@ export default function HomePage() {
               aria-label="清除输入"
               className="absolute right-2 top-1/2 h-7 w-7 -translate-y-1/2 rounded-full px-0 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
             >
-              ✕
+              <CloseIcon title="清除输入" className="h-4 w-4" />
             </Button>
           )}
         </div>
@@ -191,17 +193,17 @@ export default function HomePage() {
 function GettingStarted() {
   const steps = [
     {
-      icon: "🔍",
+      icon: <SearchIcon title="查词" className="h-4 w-4" />,
       title: "查个词",
       desc: "试试 abandon、ability、abroad",
     },
     {
-      icon: "＋",
+      icon: <PlusIcon title="收藏" className="h-4 w-4" />,
       title: "收藏入队",
       desc: "词条页右上角加入复习队列",
     },
     {
-      icon: "📚",
+      icon: <BooksIcon title="复习" className="h-4 w-4" />,
       title: "明天来复习",
       desc: "FSRS 算法会在最佳时机提醒你",
     },
@@ -214,7 +216,7 @@ function GettingStarted() {
       <ol className="flex flex-col gap-3">
         {steps.map((s, i) => (
           <li key={i} className="flex items-start gap-3">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-50 text-base dark:bg-blue-950">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-300">
               {s.icon}
             </span>
             <div className="flex flex-col">

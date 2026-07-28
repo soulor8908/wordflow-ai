@@ -1,0 +1,183 @@
+[
+  {
+    "phonetic": "/əˈɡen/",
+    "definition": "another time; once more",
+    "examples": [
+      {
+        "en": "Please say it again.",
+        "zh": "请再说一遍。"
+      }
+    ],
+    "synonyms": [
+      "once more",
+      "anew",
+      "afresh"
+    ],
+    "word": "again",
+    "pos": "adv.",
+    "translation": "adv. 又；再次",
+    "frequency": 8500,
+    "tags": [
+      "gaokao-core"
+    ]
+  },
+  {
+    "phonetic": "/əˈɡenst/",
+    "definition": "in opposition to; competing with",
+    "examples": [
+      {
+        "en": "She leaned against the wall.",
+        "zh": "她靠在墙上。"
+      }
+    ],
+    "synonyms": [
+      "opposed",
+      "counter to",
+      "versus"
+    ],
+    "word": "against",
+    "pos": "prep.",
+    "translation": "prep. 反对；对着",
+    "frequency": 7000,
+    "tags": [
+      "gaokao-core"
+    ]
+  },
+  {
+    "phonetic": "/eɪdʒ/",
+    "definition": "the number of years someone has lived; a period of history",
+    "examples": [
+      {
+        "en": "She looks young for her age.",
+        "zh": "就她的年龄而言她看起来很年轻。"
+      }
+    ],
+    "synonyms": [
+      "epoch",
+      "era",
+      "mature"
+    ],
+    "word": "age",
+    "pos": "n.",
+    "translation": "n. 年龄；时代",
+    "frequency": 7000,
+    "tags": [
+      "gaokao-core"
+    ]
+  },
+  {
+    "phonetic": "/ˈeɪdʒənsi/",
+    "definition": "a business that provides a particular service; a government department",
+    "examples": [
+      {
+        "en": "She works at a travel agency.",
+        "zh": "她在旅行社工作。"
+      }
+    ],
+    "synonyms": [
+      "bureau",
+      "office",
+      "branch"
+    ],
+    "word": "agency",
+    "pos": "n.",
+    "translation": "n. 代理处；机构",
+    "frequency": 2800,
+    "tags": [
+      "cet4-core",
+      "gaokao-core"
+    ]
+  },
+  {
+    "phonetic": "/əˈdʒendə/",
+    "definition": "a list of items to be discussed at a meeting",
+    "root": "ag-（做）+ -enda（事项）→ 待办",
+    "examples": [
+      {
+        "en": "What's on the agenda today?",
+        "zh": "今天议程是什么？"
+      }
+    ],
+    "synonyms": [
+      "schedule",
+      "program",
+      "docket"
+    ],
+    "word": "agenda",
+    "pos": "n.",
+    "translation": "n. 议程；日常工作事项",
+    "frequency": 1800,
+    "tags": [
+      "cet4-core"
+    ]
+  },
+  {
+    "phonetic": "/ˈæɡrɪɡət/",
+    "definition": "a total made by combining different things",
+    "root": "ag-（向）+ -greg（群）+ -ate → 聚成群",
+    "examples": [
+      {
+        "en": "The aggregate cost was enormous.",
+        "zh": "总成本巨大。"
+      }
+    ],
+    "synonyms": [
+      "total",
+      "sum",
+      "combined"
+    ],
+    "word": "aggregate",
+    "pos": "n.",
+    "translation": "n. 总数 adj. 合计的",
+    "frequency": 1000,
+    "tags": [
+      "cet6-core"
+    ]
+  },
+  {
+    "phonetic": "/ˈædʒɪteɪt/",
+    "definition": "to argue or campaign publicly for something; to make someone anxious",
+    "root": "ag-（动）+ -itate → 使动",
+    "examples": [
+      {
+        "en": "The wind agitated the leaves.",
+        "zh": "风使树叶摇动。"
+      }
+    ],
+    "synonyms": [
+      "stir",
+      "disturb",
+      "rouse"
+    ],
+    "word": "agitate",
+    "pos": "v.",
+    "translation": "vt. 鼓动；使不安",
+    "frequency": 900,
+    "tags": [
+      "cet6-core"
+    ]
+  },
+  {
+    "phonetic": "/ˈæɡrɪkʌltʃər/",
+    "definition": "the practice or science of farming",
+    "root": "agri-（田地）+ -culture（耕作）→ 农业",
+    "examples": [
+      {
+        "en": "Agriculture is the backbone of the economy.",
+        "zh": "农业是经济的支柱。"
+      }
+    ],
+    "synonyms": [
+      "farming",
+      "cultivation",
+      "husbandry"
+    ],
+    "word": "agriculture",
+    "pos": "n.",
+    "translation": "n. 农业；农耕",
+    "frequency": 1600,
+    "tags": [
+      "cet4-core"
+    ]
+  }
+]

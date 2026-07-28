@@ -13,7 +13,7 @@ export interface NotificationPayload {
 /**
  * 根据 periodicsync 后台检查结果构造通知文案（纯函数）。
  * 文案分级（对齐设计文档 §3.4 + §4.5.3）：
- * - dueCount > 0 且 daysSinceLastStudy < 3 → "📚 今日有 N 词待复习"
+ * - dueCount > 0 且 daysSinceLastStudy < 3 → "今日有 N 词待复习"
  * - daysSinceLastStudy >= 3 且 < 7 → "回来背词吧，复习队列在等你"
  * - daysSinceLastStudy >= 7 → "很久没背词了，词书在等你"（换文案避免麻木）
  * - dueCount == 0 且 daysSinceLastStudy < 3 → null（无需打扰）
@@ -48,7 +48,7 @@ export function buildNotificationMessage(
   // 0-2 天：有待复习卡片才提醒
   if (dueCount > 0) {
     return {
-      title: `📚 今日有 ${dueCount} 词待复习`,
+      title: `今日有 ${dueCount} 词待复习`,
       body: `共 ${dueCount} 词待复习，点击开始`,
       url: REVIEW_URL,
       tag: TAG,

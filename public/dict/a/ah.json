@@ -1,0 +1,24 @@
+[
+  {
+    "phonetic": "/əˈhed/",
+    "definition": "in front; in the future",
+    "examples": [
+      {
+        "en": "The road ahead is clear.",
+        "zh": "前方的路畅通。"
+      }
+    ],
+    "synonyms": [
+      "forward",
+      "onward",
+      "before"
+    ],
+    "word": "ahead",
+    "pos": "adv.",
+    "translation": "adv. 在前面；向前",
+    "frequency": 3200,
+    "tags": [
+      "cet4-core"
+    ]
+  }
+]

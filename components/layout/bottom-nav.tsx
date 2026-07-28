@@ -9,13 +9,14 @@
  */
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { countDueCards } from "@/lib/storage/db";
+import { BookIcon, BooksIcon, SearchIcon, UserIcon } from "@/components/ui/icons";
 
 interface NavItem {
   href: string;
   label: string;
-  icon: string;
+  icon: ReactNode;
   match: (path: string) => boolean;
 }
 
@@ -23,25 +24,25 @@ const NAV_ITEMS: NavItem[] = [
   {
     href: "/",
     label: "查词",
-    icon: "🔍",
+    icon: <SearchIcon className="h-5 w-5" />,
     match: (p) => p === "/" || p.startsWith("/word/"),
   },
   {
     href: "/review",
     label: "复习",
-    icon: "📚",
+    icon: <BooksIcon className="h-5 w-5" />,
     match: (p) => p.startsWith("/review"),
   },
   {
     href: "/books",
     label: "词库",
-    icon: "📖",
+    icon: <BookIcon className="h-5 w-5" />,
     match: (p) => p.startsWith("/books"),
   },
   {
     href: "/me",
     label: "我的",
-    icon: "👤",
+    icon: <UserIcon className="h-5 w-5" />,
     match: (p) => p.startsWith("/me") || p.startsWith("/stats"),
   },
 ];
@@ -88,7 +89,7 @@ export default function BottomNav() {
                     : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
                 }`}
               >
-                <span className="text-lg leading-none">{item.icon}</span>
+                <span className="leading-none">{item.icon}</span>
                 <span>{item.label}</span>
                 {/* 复习 tab 待复习数量徽标 */}
                 {item.href === "/review" && dueCount > 0 && (

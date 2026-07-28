@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from "react";
 import { getAiConfig, type AiConfig } from "@/lib/ai/ai-config";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ChatIcon, CloseIcon, KeyIcon } from "@/components/ui/icons";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -151,9 +152,13 @@ export default function AiAssistant() {
         onClick={() => setOpen((v) => !v)}
         aria-label={open ? "关闭 AI 助手" : "打开 AI 助手"}
         aria-expanded={open}
-        className="fixed bottom-20 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full !px-0 text-2xl shadow-lg transition-transform hover:scale-105 active:scale-95"
+        className="fixed bottom-20 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full !px-0 shadow-lg transition-transform hover:scale-105 active:scale-95"
       >
-        {open ? "✕" : "💬"}
+        {open ? (
+          <CloseIcon title="关闭" className="h-5 w-5" />
+        ) : (
+          <ChatIcon title="打开 AI 助手" className="h-5 w-5" />
+        )}
       </Button>
 
       {/* 聊天面板 */}
@@ -166,7 +171,7 @@ export default function AiAssistant() {
           {/* 头部 */}
           <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-2.5 dark:border-neutral-900">
             <div className="flex items-center gap-2">
-              <span className="text-base">💬</span>
+              <ChatIcon title="AI 助手" className="h-4 w-4 text-blue-600 dark:text-blue-400" />
               <span className="text-sm font-medium">AI 助手</span>
               {config && (
                 <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] text-green-700 dark:bg-green-950 dark:text-green-300">
@@ -192,7 +197,7 @@ export default function AiAssistant() {
             {/* 未配置 AI 引导 */}
             {!config && (
               <div className="flex flex-col items-center gap-3 px-4 py-8 text-center">
-                <span className="text-3xl">🔑</span>
+                <KeyIcon title="API Key" className="h-8 w-8 text-amber-500" />
                 <p className="text-sm text-neutral-600 dark:text-neutral-300">
                   还没有配置 AI
                 </p>

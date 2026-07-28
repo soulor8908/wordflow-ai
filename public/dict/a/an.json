@@ -1,0 +1,163 @@
+[
+  {
+    "phonetic": "/əˈnælədʒi/",
+    "definition": "a comparison between things that are similar in some way",
+    "root": "ana-（按）+ -logy（比例）→ 类比",
+    "examples": [
+      {
+        "en": "He drew an analogy between the brain and a computer.",
+        "zh": "他把大脑和电脑作类比。"
+      }
+    ],
+    "synonyms": [
+      "comparison",
+      "likeness",
+      "parallel"
+    ],
+    "word": "analogy",
+    "pos": "n.",
+    "translation": "n. 类比；相似",
+    "frequency": 1200,
+    "tags": [
+      "cet6-core"
+    ]
+  },
+  {
+    "phonetic": "/ˈænəlaɪz/",
+    "definition": "to examine something carefully to understand it",
+    "root": "ana-（分开）+ -lyze（解）→ 分解",
+    "examples": [
+      {
+        "en": "Scientists analyzed the data.",
+        "zh": "科学家们分析了数据。"
+      }
+    ],
+    "synonyms": [
+      "examine",
+      "study",
+      "evaluate"
+    ],
+    "word": "analyze",
+    "pos": "v.",
+    "translation": "vt. 分析；解析",
+    "frequency": 2400,
+    "tags": [
+      "cet4-core",
+      "cet6-core"
+    ]
+  },
+  {
+    "phonetic": "/ˈeɪnʃənt/",
+    "definition": "very old; from a long time ago",
+    "examples": [
+      {
+        "en": "They visited ancient ruins in Greece.",
+        "zh": "他们参观了希腊的古迹。"
+      }
+    ],
+    "synonyms": [
+      "old",
+      "antique",
+      "archaic"
+    ],
+    "word": "ancient",
+    "pos": "adj.",
+    "translation": "adj. 古代的；古老的",
+    "frequency": 2200,
+    "tags": [
+      "cet4-core"
+    ]
+  },
+  {
+    "phonetic": "/əˈnaʊns/",
+    "definition": "to tell people something officially",
+    "root": "an-（向）+ -nounce（报告）→ 宣告",
+    "examples": [
+      {
+        "en": "They announced their engagement.",
+        "zh": "他们宣布订婚了。"
+      }
+    ],
+    "synonyms": [
+      "declare",
+      "proclaim",
+      "broadcast"
+    ],
+    "word": "announce",
+    "pos": "v.",
+    "translation": "vt. 宣布；宣告",
+    "frequency": 3000,
+    "tags": [
+      "cet4-core"
+    ]
+  },
+  {
+    "phonetic": "/ˈænjuəl/",
+    "definition": "happening once a year",
+    "root": "ann-（年）+ -ual → 年度的",
+    "examples": [
+      {
+        "en": "The company holds an annual meeting.",
+        "zh": "公司每年召开年会。"
+      }
+    ],
+    "synonyms": [
+      "yearly",
+      "per annum",
+      "recurrent"
+    ],
+    "word": "annual",
+    "pos": "adj.",
+    "translation": "adj. 每年的；年度的",
+    "frequency": 2800,
+    "tags": [
+      "cet4-core"
+    ]
+  },
+  {
+    "phonetic": "/əˈnɒnɪməs/",
+    "definition": "done by someone whose name is not known",
+    "root": "an-（无）+ -onym（名）+ -ous → 无名的",
+    "examples": [
+      {
+        "en": "The donor wishes to remain anonymous.",
+        "zh": "捐赠者希望匿名。"
+      }
+    ],
+    "synonyms": [
+      "unnamed",
+      "nameless",
+      "incognito"
+    ],
+    "word": "anonymous",
+    "pos": "adj.",
+    "translation": "adj. 匿名的；无名的",
+    "frequency": 1400,
+    "tags": [
+      "cet6-core"
+    ]
+  },
+  {
+    "phonetic": "/ænˈtɪsɪpeɪt/",
+    "definition": "to expect that something will happen; to look forward to",
+    "root": "anti-（前）+ -cip（取）+ -ate → 预先取",
+    "examples": [
+      {
+        "en": "We anticipate a busy season.",
+        "zh": "我们预计旺季会很忙。"
+      }
+    ],
+    "synonyms": [
+      "expect",
+      "foresee",
+      "await"
+    ],
+    "word": "anticipate",
+    "pos": "v.",
+    "translation": "vt. 预期；期待",
+    "frequency": 2200,
+    "tags": [
+      "cet6-core"
+    ]
+  }
+]

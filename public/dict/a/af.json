@@ -1,0 +1,160 @@
+[
+  {
+    "phonetic": "/əˈfekt/",
+    "definition": "to influence or cause a change in someone or something",
+    "root": "af-（向）+ -fect（做）→ 作用于",
+    "examples": [
+      {
+        "en": "The weather affects his mood.",
+        "zh": "天气影响他的心情。"
+      }
+    ],
+    "synonyms": [
+      "influence",
+      "touch",
+      "alter"
+    ],
+    "word": "affect",
+    "pos": "v.",
+    "translation": "vt. 影响；感动",
+    "frequency": 5200,
+    "tags": [
+      "cet4-core",
+      "gaokao-core"
+    ]
+  },
+  {
+    "phonetic": "/əˈfɪlieɪt/",
+    "definition": "to officially attach or connect; a related organization",
+    "root": "af-（向）+ -fili（子）+ -ate → 收为子属",
+    "examples": [
+      {
+        "en": "The college is affiliated with the university.",
+        "zh": "这所学院附属于该大学。"
+      }
+    ],
+    "synonyms": [
+      "associate",
+      "connect",
+      "attach"
+    ],
+    "word": "affiliate",
+    "pos": "v.",
+    "translation": "vt. 使隶属 n. 附属机构",
+    "frequency": 1100,
+    "tags": [
+      "cet6-core"
+    ]
+  },
+  {
+    "phonetic": "/əˈfɜːm/",
+    "definition": "to state publicly that something is true",
+    "root": "af-（向）+ -firm（坚定）→ 断定",
+    "examples": [
+      {
+        "en": "He affirmed his loyalty to the country.",
+        "zh": "他声明确忠于国家。"
+      }
+    ],
+    "synonyms": [
+      "assert",
+      "declare",
+      "confirm"
+    ],
+    "word": "affirm",
+    "pos": "v.",
+    "translation": "vt. 断言；证实",
+    "frequency": 1200,
+    "tags": [
+      "cet6-core"
+    ]
+  },
+  {
+    "phonetic": "/əˈfɔːd/",
+    "definition": "to have enough money to buy or pay for something",
+    "examples": [
+      {
+        "en": "I can't afford a new car.",
+        "zh": "我买不起新车。"
+      }
+    ],
+    "synonyms": [
+      "bear",
+      "manage",
+      "sustain"
+    ],
+    "word": "afford",
+    "pos": "v.",
+    "translation": "vt. 买得起；承担得起",
+    "frequency": 3000,
+    "tags": [
+      "cet4-core",
+      "gaokao-core"
+    ]
+  },
+  {
+    "phonetic": "/əˈfreɪd/",
+    "definition": "feeling fear; frightened",
+    "examples": [
+      {
+        "en": "She is afraid of dogs.",
+        "zh": "她怕狗。"
+      }
+    ],
+    "synonyms": [
+      "scared",
+      "frightened",
+      "fearful"
+    ],
+    "word": "afraid",
+    "pos": "adj.",
+    "translation": "adj. 害怕的；担心的",
+    "frequency": 4500,
+    "tags": [
+      "gaokao-core"
+    ]
+  },
+  {
+    "phonetic": "/ˈɑːftər/",
+    "definition": "later than something; following in time",
+    "examples": [
+      {
+        "en": "I'll call you after lunch.",
+        "zh": "午饭后我给你打电话。"
+      }
+    ],
+    "synonyms": [
+      "following",
+      "behind",
+      "subsequent to"
+    ],
+    "word": "after",
+    "pos": "prep.",
+    "translation": "prep. 在...之后",
+    "frequency": 9000,
+    "tags": [
+      "gaokao-core"
+    ]
+  },
+  {
+    "phonetic": "/ˌɑːftəˈnuːn/",
+    "definition": "the time between noon and evening",
+    "examples": [
+      {
+        "en": "We met in the afternoon.",
+        "zh": "我们下午见面。"
+      }
+    ],
+    "synonyms": [
+      "eve",
+      "postmeridian"
+    ],
+    "word": "afternoon",
+    "pos": "n.",
+    "translation": "n. 下午",
+    "frequency": 5500,
+    "tags": [
+      "gaokao-core"
+    ]
+  }
+]

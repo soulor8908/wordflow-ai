@@ -1,0 +1,117 @@
+[
+  {
+    "phonetic": "/ˌæpəˈreɪtəs/",
+    "definition": "tools or equipment for a particular purpose",
+    "root": "ad-（向）+ -parat（准备）+ -us → 装备",
+    "examples": [
+      {
+        "en": "The lab has modern apparatus.",
+        "zh": "实验室有现代仪器。"
+      }
+    ],
+    "synonyms": [
+      "equipment",
+      "device",
+      "gear"
+    ],
+    "word": "apparatus",
+    "pos": "n.",
+    "translation": "n. 装置；器械",
+    "frequency": 900,
+    "tags": [
+      "cet6-core"
+    ]
+  },
+  {
+    "phonetic": "/əˈpiːl/",
+    "definition": "to make a serious request; to attract or interest someone",
+    "root": "ap-（向）+ -peal（拉）→ 拉向",
+    "examples": [
+      {
+        "en": "She appealed to the court.",
+        "zh": "她向法院上诉。"
+      }
+    ],
+    "synonyms": [
+      "request",
+      "plead",
+      "attract"
+    ],
+    "word": "appeal",
+    "pos": "v.",
+    "translation": "vi. 呼吁；上诉 n. 吸引力",
+    "frequency": 2800,
+    "tags": [
+      "cet6-core"
+    ]
+  },
+  {
+    "phonetic": "/əˈpendɪks/",
+    "definition": "extra material at the end of a book; a small organ in the body",
+    "root": "ap-（向）+ -pend（挂）+ -ix → 挂在后面",
+    "examples": [
+      {
+        "en": "See the appendix for details.",
+        "zh": "详情见附录。"
+      }
+    ],
+    "synonyms": [
+      "supplement",
+      "addendum",
+      "attachment"
+    ],
+    "word": "appendix",
+    "pos": "n.",
+    "translation": "n. 附录；阑尾",
+    "frequency": 1000,
+    "tags": [
+      "cet6-core"
+    ]
+  },
+  {
+    "phonetic": "/əˈplaɪ/",
+    "definition": "to make a formal request; to use something in a situation",
+    "root": "ap-（向）+ -ply（折）→ 折向",
+    "examples": [
+      {
+        "en": "She applied for a scholarship.",
+        "zh": "她申请了奖学金。"
+      }
+    ],
+    "synonyms": [
+      "request",
+      "petition",
+      "utilize"
+    ],
+    "word": "apply",
+    "pos": "v.",
+    "translation": "vt. 应用；申请",
+    "frequency": 4200,
+    "tags": [
+      "cet4-core"
+    ]
+  },
+  {
+    "phonetic": "/əˈprəʊtʃ/",
+    "definition": "to come near; a way of dealing with something",
+    "root": "ap-（向）+ -proach（近）→ 靠近",
+    "examples": [
+      {
+        "en": "He approached the door quietly.",
+        "zh": "他悄悄靠近门。"
+      }
+    ],
+    "synonyms": [
+      "near",
+      "advance",
+      "method"
+    ],
+    "word": "approach",
+    "pos": "v.",
+    "translation": "vt. 接近 n. 方法",
+    "frequency": 3800,
+    "tags": [
+      "cet4-core"
+    ]
+  }
+]

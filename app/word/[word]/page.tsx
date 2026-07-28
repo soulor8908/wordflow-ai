@@ -15,6 +15,7 @@ import {
   unfavoriteWord,
 } from "@/lib/review/favorite";
 import { Button } from "@/components/ui/button";
+import { PlusIcon, VolumeIcon } from "@/components/ui/icons";
 
 export default function WordPage({
   params,
@@ -101,7 +102,14 @@ export default function WordPage({
               : ""
           }
         >
-          {favorited ? "✓ 已在队列，明天复习" : "＋ 收藏入队"}
+          {favorited ? (
+            <span>✓ 已在队列，明天复习</span>
+          ) : (
+            <>
+              <PlusIcon title="收藏" className="h-4 w-4" />
+              <span>收藏入队</span>
+            </>
+          )}
         </Button>
       </div>
 
@@ -125,7 +133,8 @@ export default function WordPage({
                 size="sm"
                 aria-label={`发音 ${entry.word}`}
               >
-                🔊 发音
+                <VolumeIcon title="发音" className="h-4 w-4" />
+                <span>发音</span>
               </Button>
             )}
           </div>
