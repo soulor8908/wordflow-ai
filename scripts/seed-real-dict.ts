@@ -18,7 +18,7 @@
  * 用法：tsx scripts/seed-real-dict.ts
  */
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "node:fs";
-import { join, dirname, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import type { DictEntry } from "@/lib/dict/dict-loader";
 
 interface BookWord {
