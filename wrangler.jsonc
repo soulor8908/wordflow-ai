@@ -23,5 +23,10 @@
 		// Enable image optimization
 		// see https://opennext.js.org/cloudflare/howtos/image
 		"binding": "IMAGES"
+	},
+	"ai": {
+		// Cloudflare Workers AI：免费 AI 推理，无需 API Key
+		// see https://developers.cloudflare.com/workers-ai/
+		"binding": "AI"
 	}
 }

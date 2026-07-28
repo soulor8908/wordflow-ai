@@ -17,7 +17,7 @@ import { nanoid } from "nanoid";
 import { getAiConfig, type AiConfig } from "@/lib/ai/ai-config";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ChatIcon, CloseIcon, KeyIcon } from "@/components/ui/icons";
+import { ChatIcon, CloseIcon } from "@/components/ui/icons";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -288,41 +288,29 @@ export default function AiAssistant() {
 
           {/* 消息区 */}
           <div className="flex-1 overflow-y-auto px-3 py-3">
-            {/* 未配置 AI 且免费通道未开放 → 引导配置 */}
+            {/* 免费通道不可用且未配置 BYOK → 友好提示（不强迫配置） */}
             {!config && !freeEnabled && (
               <div className="flex flex-col items-center gap-3 px-4 py-8 text-center">
-                <KeyIcon title="API Key" className="h-8 w-8 text-amber-500" />
+                <ChatIcon title="AI 助手" className="h-8 w-8 text-neutral-400" />
                 <p className="text-sm text-neutral-600 dark:text-neutral-300">
-                  还没有配置 AI
+                  AI 助手加载中…
                 </p>
                 <p className="text-xs text-neutral-400">
-                  填入你的 API Key 即可启用 AI 讲解、造句批改、学习建议
+                  如果长时间无响应，可在「我的」页配置自己的 API Key
                 </p>
-                <Link
-                  href="/me"
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-medium text-white hover:bg-blue-700"
-                >
-                  去配置
-                </Link>
               </div>
             )}
 
-            {/* 免费额度已耗尽 → 引导配置 */}
+            {/* 免费额度已耗尽 → 温和引导（可选配置） */}
             {!config && freeEnabled && (quota?.remaining ?? 0) === 0 && messages.length === 0 && (
               <div className="flex flex-col items-center gap-3 px-4 py-8 text-center">
-                <KeyIcon title="API Key" className="h-8 w-8 text-amber-500" />
+                <ChatIcon title="AI 助手" className="h-8 w-8 text-amber-500" />
                 <p className="text-sm text-neutral-600 dark:text-neutral-300">
                   今日免费额度已用完
                 </p>
                 <p className="text-xs text-neutral-400">
-                  配置自己的 API Key 可无限使用，且对话更稳定
+                  明天再来，或在「我的」页配置自己的 API Key 获得无限额度
                 </p>
-                <Link
-                  href="/me"
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-medium text-white hover:bg-blue-700"
-                >
-                  去配置
-                </Link>
               </div>
             )}
 

@@ -8,6 +8,7 @@
  * - 选定后写入 settings:active-book，关闭弹窗
  * - 允许"稍后再选"跳过，但下次进首页还会弹
  */
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   loadBookIndex,
@@ -18,6 +19,7 @@ import { hasSelectedBook, setActiveBook } from "@/lib/review/active-book";
 import { Button } from "@/components/ui/button";
 
 export default function OnboardingDialog() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [books, setBooks] = useState<BookMeta[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +53,8 @@ export default function OnboardingDialog() {
     try {
       await setActiveBook(bookId);
       setOpen(false);
+      // 选完直接去复习页，开始学习闭环
+      router.push("/review");
     } finally {
       setSelecting(null);
     }

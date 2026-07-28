@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import OnboardingDialog from "./onboarding-dialog";
 import { getActiveBook } from "@/lib/review/active-book";
+import { peekTodayNewWordCount } from "@/lib/review/book-queue";
 import { BookIcon, BooksIcon, CloseIcon, PlusIcon, SearchIcon } from "@/components/ui/icons";
 
 /** 词频 → 星级（1-5 星，对齐 ECDICT collins 星级） */
@@ -32,6 +33,7 @@ export default function HomePage() {
   const { query, setQuery, results, loading, indexReady } = useSearch(8);
   const inputRef = useRef<HTMLInputElement>(null);
   const [dueCount, setDueCount] = useState<number | null>(null);
+  const [newWordCount, setNewWordCount] = useState<number | null>(null);
   const [activeBookId, setActiveBookId] = useState<string | null>(null);
   const [activeBookName, setActiveBookName] = useState<string | null>(null);
 
@@ -40,16 +42,25 @@ export default function HomePage() {
     inputRef.current?.focus();
   }, []);
 
-  // 今日待复习数量 + 当前词库（首屏加载一次）
+  // 今日待复习数量 + 今日新词数 + 当前词库（首屏加载一次）
   useEffect(() => {
     countDueCards(new Date().toISOString())
       .then((n) => setDueCount(n))
       .catch(() => setDueCount(0));
     getActiveBook()
-      .then((ab) => {
+      .then(async (ab) => {
         setActiveBookId(ab?.bookId ?? null);
+        if (ab?.bookId) {
+          const n = await peekTodayNewWordCount(ab.bookId).catch(() => 0);
+          setNewWordCount(n);
+        } else {
+          setNewWordCount(0);
+        }
       })
-      .catch(() => setActiveBookId(null));
+      .catch(() => {
+        setActiveBookId(null);
+        setNewWordCount(0);
+      });
   }, []);
 
   // 监听 onboarding 选择完成，刷新当前词库显示
@@ -67,8 +78,9 @@ export default function HomePage() {
   const hasQuery = query.trim().length > 0;
   // 清除按钮直接从 query 派生，避免 effect 内 setState
   const showClear = query.length > 0;
+  const totalTodo = (dueCount ?? 0) + (newWordCount ?? 0);
   const showEmptyState =
-    !hasQuery && dueCount !== null && dueCount === 0 && indexReady;
+    !hasQuery && dueCount !== null && totalTodo === 0 && indexReady;
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-6 px-4 py-10 pb-24">
@@ -97,20 +109,32 @@ export default function HomePage() {
         </Link>
       )}
 
-      {/* 今日待复习提醒：修复 flex 布局，让"统计"链接真正靠右 */}
+      {/* 今日学习提醒：到期复习 + 今日新词合并展示，形成闭环 */}
       <div className="flex items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm dark:border-neutral-800 dark:bg-neutral-900">
-        {dueCount === null ? (
-          <span className="text-neutral-400">加载今日复习…</span>
-        ) : dueCount > 0 ? (
+        {dueCount === null || newWordCount === null ? (
+          <span className="text-neutral-400">加载今日学习…</span>
+        ) : totalTodo > 0 ? (
           <Link
             href="/review"
             className="flex items-center gap-1.5 font-medium text-blue-600 hover:underline"
           >
             <BooksIcon title="复习" className="h-4 w-4" />
-            <span>今日有 {dueCount} 词待复习，去复习 →</span>
+            <span>
+              今日待学 {totalTodo} 词
+              {dueCount > 0 && newWordCount > 0
+                ? `（复习 ${dueCount} + 新词 ${newWordCount}）`
+                : dueCount > 0
+                  ? `（${dueCount} 词待复习）`
+                  : `（${newWordCount} 个新词）`}
+              ，去学习 →
+            </span>
           </Link>
         ) : (
-          <span className="text-neutral-500">暂无到期复习，查个新词吧</span>
+          <span className="text-neutral-500">
+            {activeBookId
+              ? "今日已学完，明天见"
+              : "暂无到期复习，查个新词吧"}
+          </span>
         )}
         <Link
           href="/stats"

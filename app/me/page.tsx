@@ -219,7 +219,7 @@ export default function MePage() {
         )}
       </section>
 
-      {/* AI 配置 */}
+      {/* AI 高级设置（可选）：默认已开箱即用，此处仅供高级用户自定义 */}
       <AiConfigSection
         config={aiConfig}
         onSaved={() =>
@@ -349,12 +349,13 @@ function AiConfigSection({
     <section className="rounded-xl border border-neutral-200 px-4 py-4 dark:border-neutral-800">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="flex items-center gap-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">
-          <RobotIcon title="AI 配置" className="h-4 w-4" /> AI 配置
+          <RobotIcon title="AI 高级设置" className="h-4 w-4" /> AI 高级设置
+          <span className="text-[10px] font-normal text-neutral-400">（可选）</span>
         </h2>
         {config && !editing && (
           <div className="flex items-center gap-2">
             <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] text-green-700 dark:bg-green-950 dark:text-green-300">
-              ✓ 已配置 · {config.provider}
+              ✓ 自定义 · {config.provider}
             </span>
             <Button
               type="button"
@@ -368,6 +369,22 @@ function AiConfigSection({
           </div>
         )}
       </div>
+      {!config && !editing && (
+        <div className="flex flex-col gap-2">
+          <p className="text-xs text-neutral-400">
+            AI 助手已默认免费可用。如需使用自己的 API Key（无限额度），可在此配置。
+          </p>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setEditing(true)}
+            className="self-start text-xs text-blue-600"
+          >
+            配置自己的 API Key
+          </Button>
+        </div>
+      )}
 
       {editing ? (
         <div className="flex flex-col gap-3">

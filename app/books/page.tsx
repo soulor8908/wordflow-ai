@@ -9,6 +9,7 @@
  * - 显示每本词书的学习进度（cursor / wordCount）
  */
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   loadBookIndex,
@@ -28,6 +29,7 @@ interface BookWithProgress extends BookMeta {
 }
 
 export default function BooksPage() {
+  const router = useRouter();
   const [books, setBooks] = useState<BookWithProgress[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [switching, setSwitching] = useState<string | null>(null);
@@ -73,6 +75,8 @@ export default function BooksPage() {
           ? prev.map((b) => ({ ...b, isActive: b.id === bookId }))
           : prev
       );
+      // 选完直接去复习页，确保学习闭环（选词库 → 立即开始学习）
+      router.push("/review");
     } finally {
       setSwitching(null);
     }

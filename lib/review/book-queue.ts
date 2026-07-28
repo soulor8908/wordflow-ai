@@ -289,14 +289,34 @@ async function listExistingCardWords(): Promise<Set<string>> {
 /**
  * I/O：获取今日新词候选并推进游标（每日仅一次）。
  *
- * 幂等性：使用"今日候选缓存"确保同一天多次调用返回相同的候选词，
- * 不受 React StrictMode 双重调用或页面刷新影响。
+ * 幂等性（三重保障）：
+ * 1. in-flight Promise 去重：同一时刻多次调用共享同一个 Promise（防 StrictMode 竞态）
+ * 2. 今日候选缓存：已生成的候选词落 IndexedDB，同一天直接返回
+ * 3. lastAdvancedDate：当日已推进过 cursor 则不再发放
  *
  * 切片化优化：只加载 cursor 附近的 1-2 个切片，不全量加载词书。
  *
  * @returns 新词候选列表（当日已发放或词书耗尽时为空数组）
  */
+
+// in-flight Promise 去重：防止 React StrictMode 双重调用导致 cursor 重复推进
+const inflightNewWords = new Map<string, Promise<NewWordCandidate[]>>();
+
 export async function getTodayNewWords(
+  bookId: string
+): Promise<NewWordCandidate[]> {
+  // 如果已有进行中的调用，直接复用同一个 Promise
+  const inflight = inflightNewWords.get(bookId);
+  if (inflight) return inflight;
+
+  const promise = doGetTodayNewWords(bookId).finally(() => {
+    inflightNewWords.delete(bookId);
+  });
+  inflightNewWords.set(bookId, promise);
+  return promise;
+}
+
+async function doGetTodayNewWords(
   bookId: string
 ): Promise<NewWordCandidate[]> {
   const meta = await loadBookMeta(bookId);
@@ -366,4 +386,42 @@ export async function getTodayNewWords(
   });
 
   return result.candidates;
+}
+
+/**
+ * 查询今日新词候选数量（不推进 cursor，不消耗配额）。
+ *
+ * 用于首页展示"今日有 N 个新词待学"，确保即使用户还没进复习页，
+ * 也能知道今天有词可学，形成学习闭环引导。
+ */
+export async function peekTodayNewWordCount(
+  bookId: string
+): Promise<number> {
+  const today = todayLocalDate();
+  const todayCacheKey = `book:${bookId}:today-candidates`;
+  const cached = await getItem<{
+    date: string;
+    candidates: NewWordCandidate[];
+  }>(todayCacheKey);
+
+  if (cached && cached.date === today) {
+    return cached.candidates.length;
+  }
+
+  // 今日还没生成候选词 → 检查是否需要生成
+  const existing = await getBookProgress(bookId);
+  const lastAdvancedDate = existing?.lastAdvancedDate;
+
+  // 今日已推进过 cursor → 候选词已发放过（0 个待学）
+  if (lastAdvancedDate === today) return 0;
+
+  // 今日还没推进 cursor → 有 dailyNew 个新词待学
+  const meta = await loadBookMeta(bookId);
+  const dailyNew = existing?.dailyNew ?? meta.dailyNew;
+  const cursor = existing?.cursor ?? 0;
+
+  // 词书已学完
+  if (cursor >= meta.wordCount) return 0;
+
+  return dailyNew;
 }

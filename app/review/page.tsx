@@ -12,7 +12,7 @@
  */
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { listDueCards, buildTodayQueue, type TodayQueueItem, type NewWordCandidate } from "@/lib/review/today-queue";
+import { listDueCards, buildTodayQueue, type TodayQueueItem } from "@/lib/review/today-queue";
 import { getTodayNewWords } from "@/lib/review/book-queue";
 import { submitReview, type ReviewOutcome } from "@/lib/review/review-session";
 import { findEntry, type DictEntry } from "@/lib/dict/dict-loader";
@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button";
 import { TrophyIcon, VolumeIcon } from "@/components/ui/icons";
 import { usePronunciation } from "@/lib/audio/use-pronunciation";
 
-type Phase = "loading" | "reviewing" | "done" | "no-book";
+type Phase = "loading" | "reviewing" | "done" | "no-book" | "error";
 
 export default function ReviewPage() {
   const [phase, setPhase] = useState<Phase>("loading");
@@ -36,11 +36,14 @@ export default function ReviewPage() {
   const [outcomes, setOutcomes] = useState<ReviewOutcome[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   // 构建今日队列
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      setPhase("loading");
+      setLoadError(null);
       try {
         const active = await getActiveBook();
         if (cancelled) return;
@@ -51,15 +54,13 @@ export default function ReviewPage() {
         const now = new Date();
         const [dueCards, newWords] = await Promise.all([
           listDueCards(now),
-          getTodayNewWords(active.bookId).catch(
-            () => [] as NewWordCandidate[]
-          ),
+          getTodayNewWords(active.bookId),
         ]);
         if (cancelled) return;
         const items = buildTodayQueue({
           dueCards,
           newWordCandidates: newWords,
-          dailyNewLimit: newWords.length, // 配额已在 book-queue 层用 dailyNew 截断
+          dailyNewLimit: newWords.length,
         });
         setQueue(items);
         if (items.length === 0) {
@@ -70,14 +71,14 @@ export default function ReviewPage() {
       } catch (e) {
         if (!cancelled) {
           setLoadError(e instanceof Error ? e.message : "加载复习队列失败");
-          setPhase("done");
+          setPhase("error");
         }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [retryNonce]);
 
   const currentItem = queue[index];
   const currentWord = currentItem
@@ -208,6 +209,30 @@ export default function ReviewPage() {
 
   if (phase === "done") {
     return <DoneScreen outcomes={outcomes} loadError={loadError} />;
+  }
+
+  if (phase === "error") {
+    return (
+      <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col items-center justify-center gap-4 px-4 py-10 text-center">
+        <h1 className="text-xl font-bold text-red-500">加载失败</h1>
+        <p className="text-sm text-neutral-500">{loadError}</p>
+        <div className="flex gap-3">
+          <Button
+            type="button"
+            onClick={() => setRetryNonce((n) => n + 1)}
+            variant="primary"
+          >
+            重试
+          </Button>
+          <Link
+            href="/books"
+            className="rounded-lg border border-neutral-300 px-4 py-2 text-sm text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-900"
+          >
+            换个词库
+          </Link>
+        </div>
+      </main>
+    );
   }
 
   const total = queue.length;

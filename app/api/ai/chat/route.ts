@@ -11,6 +11,10 @@ import {
   peekQuota,
   type QuotaSnapshot,
 } from "@/lib/ai/free-quota";
+import {
+  generateWithCloudflareAI,
+  isCloudflareAvailable,
+} from "@/lib/ai/cloudflare-ai";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -23,18 +27,22 @@ interface ChatRequestBody extends Partial<AiSessionConfig> {
   clientId?: string;
 }
 
-/** 从环境变量构造免费通道的 session */
+/** 从环境变量构造免费通道的 session（用户自己配的 Key） */
 function getFreeSession(): AiSessionConfig | null {
   const apiKey = process.env.FREE_AI_API_KEY;
   if (!apiKey) return null;
   const provider = (process.env.FREE_AI_PROVIDER as AiSessionConfig["provider"]) ?? "glm";
-  // 默认走 GLM，允许通过环境变量覆盖 baseURL / model
   return {
     provider,
     apiKey,
     baseURL: process.env.FREE_AI_BASE_URL || undefined,
     model: process.env.FREE_AI_MODEL || undefined,
   };
+}
+
+/** 检查免费通道是否可用（FREE_AI_API_KEY 或 Cloudflare Workers AI） */
+async function isFreeChannelAvailable(): Promise<boolean> {
+  return getFreeSession() !== null || (await isCloudflareAvailable());
 }
 
 export async function POST(request: NextRequest) {
@@ -57,7 +65,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // ───────── BYOK 通道：用户自带 Key ─────────
+  // ───────── 通道1：BYOK（用户自带 Key，无限制） ─────────
   if (provider && apiKey) {
     const session: AiSessionConfig = { provider, apiKey, baseURL, model };
     try {
@@ -85,72 +93,82 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // ───────── 免费通道：服务端 Key + 限流 ─────────
+  // ───────── 通道2/3：免费通道（需要 clientId 限流） ─────────
   if (!clientId) {
     return NextResponse.json(
       {
         ok: false,
         error: "local",
-        message: "未配置 AI，请先在「我的」页填写 API Key，或开启免费体验",
+        message: "缺少客户端标识",
       },
       { status: 500 }
     );
   }
 
-  const freeSession = getFreeSession();
-  if (!freeSession) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "local",
-        message: "免费体验未开放，请在「我的」页配置自己的 API Key",
-      },
-      { status: 503 }
-    );
-  }
-
-  // 先检查额度，避免无效的 AI 调用
+  // 检查额度
   const before = peekQuota(clientId);
   if (before.remaining <= 0) {
     return NextResponse.json(
       {
         ok: false,
         error: "quota-exhausted",
-        message: "今日免费额度已用完，配置自己的 API Key 可继续使用",
+        message: "今日免费额度已用完，明天再来或配置自己的 API Key",
         quota: before,
       },
       { status: 429 }
     );
   }
 
+  const systemPrompt = buildSystemPrompt("word_explain_chat");
+  const mappedMessages = messages.map((m) => ({
+    role: m.role,
+    content: m.content,
+  }));
+
+  // 通道2：FREE_AI_API_KEY（环境变量配的第三方 Key）
+  const freeSession = getFreeSession();
+  if (freeSession) {
+    try {
+      const { model: aiModel } = createAiProvider(freeSession);
+      const result = await generateText({
+        model: aiModel,
+        system: systemPrompt,
+        messages: mappedMessages,
+      });
+      const quota: QuotaSnapshot = consumeQuota(clientId);
+      return NextResponse.json({ ok: true, text: result.text, quota });
+    } catch (err) {
+      const errorClass = classifyAiError(err);
+      const message =
+        errorClass === "upstream-auth"
+          ? "免费通道密钥失效，可配置自己的 API Key"
+          : "AI 服务暂时不可用，请稍后重试";
+      return NextResponse.json(
+        { ok: false, error: errorClass, message, quota: before },
+        { status: errorClass === "upstream-auth" ? 401 : 500 }
+      );
+    }
+  }
+
+  // 通道3：Cloudflare Workers AI（内置免费，无需 Key）
   try {
-    const { model: aiModel } = createAiProvider(freeSession);
-    const systemPrompt = buildSystemPrompt("word_explain_chat");
-    const result = await generateText({
-      model: aiModel,
-      system: systemPrompt,
-      messages: messages.map((m) => ({ role: m.role, content: m.content })),
-    });
-    // 成功后才消耗额度
+    const text = await generateWithCloudflareAI(systemPrompt, mappedMessages);
     const quota: QuotaSnapshot = consumeQuota(clientId);
-    return NextResponse.json({ ok: true, text: result.text, quota });
-  } catch (err) {
-    const errorClass = classifyAiError(err);
-    const message =
-      errorClass === "upstream-auth"
-        ? "免费通道密钥失效，请配置自己的 API Key"
-        : errorClass === "upstream-other"
-          ? "AI 服务暂时不可用，请稍后重试"
-          : "免费通道配置错误，请配置自己的 API Key";
-    const status = errorClass === "upstream-auth" ? 401 : 500;
+    return NextResponse.json({ ok: true, text, quota });
+  } catch {
     return NextResponse.json(
-      { ok: false, error: errorClass, message, quota: before },
-      { status }
+      {
+        ok: false,
+        error: "local",
+        message: "AI 暂不可用，请稍后再试",
+        quota: before,
+      },
+      { status: 503 }
     );
   }
 }
 
-/** GET：查询当前 clientId 的剩余免费额度（用于 UI 实时显示） */
+/** GET：查询免费通道状态和剩余额度 */
 export async function GET(request: NextRequest) {
   const clientId = request.nextUrl.searchParams.get("clientId");
   if (!clientId) {
@@ -159,8 +177,8 @@ export async function GET(request: NextRequest) {
       { status: 400 }
     );
   }
-  const freeSession = getFreeSession();
-  if (!freeSession) {
+  const available = await isFreeChannelAvailable();
+  if (!available) {
     return NextResponse.json({
       ok: true,
       enabled: false,
