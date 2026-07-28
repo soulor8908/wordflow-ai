@@ -7,6 +7,10 @@
     {
       "level": "T2",
       "name": "WordFlow curated"
+    },
+    {
+      "level": "T3",
+      "name": "developer glossary"
     }
   ],
   "sliced": true,

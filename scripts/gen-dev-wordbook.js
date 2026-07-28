@@ -205,7 +205,10 @@ const indexJson = {
   description:
     "覆盖编程通用、Web/后端、数据/AI/大语言模型最新术语，适合开发者阅读英文文档与技术交流",
   dailyNew: 15,
-  sources: [{ level: "T2", name: "WordFlow curated" }],
+  sources: [
+    { level: "T2", name: "WordFlow curated" },
+    { level: "T3", name: "developer glossary" },
+  ],
   sliced: true,
   wordCount: unique.length,
   chunkSize: CHUNK_SIZE,
