@@ -1,0 +1,20 @@
+{
+  "id": "dev-core",
+  "name": "程序员 & AI 工作英语",
+  "description": "覆盖编程通用、Web/后端、数据/AI/大语言模型最新术语，适合开发者阅读英文文档与技术交流",
+  "dailyNew": 15,
+  "sources": [
+    {
+      "level": "T2",
+      "name": "WordFlow curated"
+    }
+  ],
+  "sliced": true,
+  "wordCount": 148,
+  "chunkSize": 100,
+  "chunkCount": 2,
+  "chunks": [
+    "chunk-000.json",
+    "chunk-001.json"
+  ]
+}

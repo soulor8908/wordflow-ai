@@ -10,6 +10,7 @@
  * - 首次访问引导：无查询 + 无待复习时展示"三步上手"卡片
  */
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { useSearch } from "@/lib/search/use-search";
 import {
@@ -17,13 +18,15 @@ import {
   pushSearchHistory,
   clearSearchHistory,
 } from "@/lib/search/search-history";
-import { countDueCards } from "@/lib/storage/db";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import OnboardingDialog from "./onboarding-dialog";
-import { getActiveBook } from "@/lib/review/active-book";
-import { peekTodayNewWordCount } from "@/lib/review/book-queue";
 import { BookIcon, BooksIcon, CloseIcon, PlusIcon, SearchIcon } from "@/components/ui/icons";
+
+// OnboardingDialog 仅首次访问使用，异步加载减小首屏 bundle
+const OnboardingDialog = dynamic(
+  () => import("./onboarding-dialog").then((m) => m.default),
+  { ssr: false, loading: () => null }
+);
 
 /** 词频 → 星级（1-5 星，对齐 ECDICT collins 星级） */
 function frequencyToStars(freq: number): string {
@@ -54,25 +57,39 @@ export default function HomePage() {
     setHistory(loadSearchHistory());
   };
 
-  // 今日待复习数量 + 今日新词数 + 当前词库（首屏加载一次）
+  // 今日待复习数量 + 今日新词数 + 当前词库（延迟加载，避免 Dexie 阻塞首屏）
   useEffect(() => {
-    countDueCards(new Date().toISOString())
-      .then((n) => setDueCount(n))
-      .catch(() => setDueCount(0));
-    getActiveBook()
-      .then(async (ab) => {
+    let cancelled = false;
+    // 动态导入重依赖（Dexie / book-queue），不阻塞首屏渲染
+    Promise.all([
+      import("@/lib/storage/db").then(({ countDueCards }) =>
+        countDueCards(new Date().toISOString())
+      ),
+      import("@/lib/review/active-book").then(({ getActiveBook }) =>
+        getActiveBook()
+      ),
+    ])
+      .then(async ([n, ab]) => {
+        if (cancelled) return;
+        setDueCount(n);
         setActiveBookId(ab?.bookId ?? null);
         if (ab?.bookId) {
-          const n = await peekTodayNewWordCount(ab.bookId).catch(() => 0);
-          setNewWordCount(n);
+          const { peekTodayNewWordCount } = await import("@/lib/review/book-queue");
+          const cnt = await peekTodayNewWordCount(ab.bookId).catch(() => 0);
+          if (!cancelled) setNewWordCount(cnt);
         } else {
           setNewWordCount(0);
         }
       })
       .catch(() => {
+        if (cancelled) return;
+        setDueCount(0);
         setActiveBookId(null);
         setNewWordCount(0);
       });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // 监听 onboarding 选择完成，刷新当前词库显示

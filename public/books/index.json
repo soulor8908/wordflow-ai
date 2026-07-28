@@ -43,6 +43,17 @@
       "color": "orange",
       "sliced": true,
       "chunkCount": 54
+    },
+    {
+      "id": "dev-core",
+      "name": "程序员 & AI 工作英语",
+      "description": "覆盖编程通用、Web/后端、数据/AI/大语言模型最新术语，适合开发者阅读英文文档与技术交流",
+      "level": "工作",
+      "wordCount": 148,
+      "dailyNew": 15,
+      "color": "slate",
+      "sliced": true,
+      "chunkCount": 2
     }
   ]
 }

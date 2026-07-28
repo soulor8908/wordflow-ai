@@ -13,7 +13,7 @@ export const bookMetaSchema = z.object({
   level: z.string(),
   wordCount: z.number().int().positive(),
   dailyNew: z.number().int().positive(),
-  color: z.enum(["blue", "purple", "green", "orange", "red", "amber"]),
+  color: z.enum(["blue", "purple", "green", "orange", "red", "amber", "slate"]),
   sliced: z.boolean().optional(),
   chunkCount: z.number().int().optional(),
 });
@@ -65,6 +65,12 @@ export const BOOK_COLOR_CLASSES: Record<
     text: "text-amber-600",
     border: "border-amber-300",
     soft: "bg-amber-50 dark:bg-amber-950",
+  },
+  slate: {
+    bg: "bg-slate-600",
+    text: "text-slate-600",
+    border: "border-slate-300",
+    soft: "bg-slate-50 dark:bg-slate-950",
   },
 };
 

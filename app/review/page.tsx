@@ -395,11 +395,15 @@ function FsrsReview() {
       {/* 卡片 */}
       <Button
         type="button"
-        onClick={flip}
+        onClick={() => {
+          if (swipe.shouldSuppressClick()) return; // 滑动后的合成 click 不翻面
+          flip();
+        }}
         disabled={submitting}
         onTouchStart={swipe.onTouchStart}
         onTouchMove={swipe.onTouchMove}
         onTouchEnd={swipe.onTouchEnd}
+        style={swipe.touchActionStyle}
         aria-label={flipped ? "点击返回正面" : "点击翻面查看释义"}
         variant="ghost"
         className="mt-4 flex max-h-[55vh] min-h-[12rem] flex-1 flex-col items-center justify-center gap-3 overflow-y-auto rounded-2xl border border-neutral-200 bg-white px-5 py-6 text-center shadow-sm dark:border-neutral-800 dark:bg-neutral-950"
@@ -888,11 +892,15 @@ function DrillMode() {
       {/* 卡片 */}
       <Button
         type="button"
-        onClick={flip}
+        onClick={() => {
+          if (drillSwipe.shouldSuppressClick()) return; // 滑动后的合成 click 不翻面
+          flip();
+        }}
         disabled={submitting}
         onTouchStart={drillSwipe.onTouchStart}
         onTouchMove={drillSwipe.onTouchMove}
         onTouchEnd={drillSwipe.onTouchEnd}
+        style={drillSwipe.touchActionStyle}
         aria-label={flipped ? "点击返回正面" : "点击翻面查看释义"}
         variant="ghost"
         className="mt-4 flex max-h-[55vh] min-h-[12rem] flex-1 flex-col items-center justify-center gap-3 overflow-y-auto rounded-2xl border border-neutral-200 bg-white px-5 py-6 text-center shadow-sm dark:border-neutral-800 dark:bg-neutral-950"

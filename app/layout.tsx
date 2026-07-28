@@ -1,8 +1,14 @@
 import type { Metadata, Viewport } from "next";
+import dynamic from "next/dynamic";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import BottomNav from "@/components/layout/bottom-nav";
-import AiAssistant from "@/components/ai/ai-assistant";
+
+// AI 助手体积较大（含 AI SDK / 多轮对话逻辑），异步加载避免阻塞首屏
+const AiAssistant = dynamic(
+  () => import("@/components/ai/ai-assistant").then((m) => m.default),
+  { ssr: false, loading: () => null }
+);
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

@@ -117,13 +117,19 @@ async function getSelectedVoice(): Promise<SpeechSynthesisVoice | null> {
 /**
  * 用 Web Speech API 发音。
  * 返回 Promise<boolean>：true 表示播放完成，false 表示失败/超时。
+ *
+ * 关键（移动端兼容）：必须在用户手势的同步调用栈内调用
+ * `speechSynthesis.speak(utterance)`，否则 iOS Safari 会静默拒绝。
+ * 因此**不**在这里 await getSelectedVoice()——voice 未就绪时跳过
+ * voice 指定（浏览器按 lang 自动选择），保证 speak 同步触发。
  */
-async function speakWithTTS(word: string, rate: number): Promise<boolean> {
+function speakWithTTS(word: string, rate: number): Promise<boolean> {
   if (!isSpeechSupported()) {
-    return false;
+    return Promise.resolve(false);
   }
 
-  const voice = await getSelectedVoice();
+  // voice 用同步缓存的值；未就绪时不指定（浏览器按 lang 兜底）
+  const voice = voicesReady ? cachedVoice : null;
 
   return new Promise<boolean>((resolve) => {
     let settled = false;
@@ -153,6 +159,7 @@ async function speakWithTTS(word: string, rate: number): Promise<boolean> {
         resolve(false);
       };
 
+      // 同步调用：必须保持在用户手势栈内
       window.speechSynthesis.speak(utterance);
     } catch {
       if (!settled) {
@@ -241,6 +248,10 @@ export function cancelSpeech(): void {
  * 统一发音接口。
  * 优先用 Web Speech API，不可用或失败时 fallback 到有道音频。
  * 防抖：同一单词 500ms 内不重复播放（可用 force 跳过）。
+ *
+ * 移动端兼容：TTS 的 speak(utterance) 必须在用户手势同步栈内触发，
+ * 因此本函数内**不** await 任何异步前置（如 voice 加载）。
+ * voice 在后台预热（warmUpVoices），首次播放未就绪时浏览器按 lang 兜底。
  */
 export async function speak(
   word: string,
@@ -263,6 +274,9 @@ export async function speak(
   // 取消正在进行的发音
   cancelSpeech();
 
+  // 后台预热 voice（不阻塞，下次播放时缓存可能已就绪）
+  warmUpVoices();
+
   if (preferAudio) {
     // 优先有道音频，失败 fallback 到 TTS
     const ok = await speakWithAudio(word);
@@ -280,4 +294,11 @@ export async function speak(
 
   // TTS 不可用或失败，用有道音频
   await speakWithAudio(word);
+}
+
+/** 后台预热 voice 缓存（不阻塞调用方） */
+function warmUpVoices(): void {
+  if (voicesReady || !isSpeechSupported()) return;
+  // 触发异步加载，结果写入模块级缓存
+  void getSelectedVoice();
 }

@@ -528,9 +528,10 @@ export default function AiAssistant() {
                   清空
                 </Button>
               )}
-              {/* 配置了自己的的 Key 时给一个快速入口 */}
+              {/* 设置入口：点击后隐藏聊天框再跳转 */}
               <Link
                 href="/me"
+                onClick={() => setOpen(false)}
                 className="text-[11px] text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
               >
                 设置
@@ -549,6 +550,31 @@ export default function AiAssistant() {
             </div>
           </div>
 
+          {/* 顶部提示条：未配置自己的 API Key 时引导添加（点击隐藏聊天框进入配置页） */}
+          {!config && (
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="flex items-center justify-between gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-left text-[11px] text-amber-700 transition-colors hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300"
+            >
+              <span>
+                {freeEnabled
+                  ? `试用中（剩余 ${quota?.remaining ?? 0}/${quota?.total ?? 0} 次）· 添加自己的 API Key 解锁无限对话`
+                  : "添加自己的 API Key 即可开始对话"}
+              </span>
+              <Link
+                href="/me"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setOpen(false);
+                }}
+                className="shrink-0 font-medium underline underline-offset-2"
+              >
+                去添加 →
+              </Link>
+            </button>
+          )}
+
           {/* 消息区 */}
           <div className="flex-1 overflow-y-auto px-3 py-3">
             {/* 免费通道不可用且未配置 BYOK → 显示明确状态（不再用"加载中"误导） */}
@@ -565,6 +591,7 @@ export default function AiAssistant() {
                 </p>
                 <Link
                   href="/me"
+                  onClick={() => setOpen(false)}
                   className="mt-1 rounded-lg border border-neutral-300 px-3 py-1.5 text-xs text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-900"
                 >
                   去配置 API Key →
