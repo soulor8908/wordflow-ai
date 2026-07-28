@@ -1,0 +1,45 @@
+{
+  "id": "cet6-core",
+  "name": "CET-6 大学英语六级核心词",
+  "description": "大学英语六级大纲词汇，覆盖学术、商务、社会话题高频词（大纲 2089 词）",
+  "dailyNew": 20,
+  "sources": [
+    {
+      "level": "T0",
+      "name": "教育部大学英语教学指南"
+    },
+    {
+      "level": "T2",
+      "name": "mahavivo/english-wordlists"
+    }
+  ],
+  "sliced": true,
+  "wordCount": 2218,
+  "chunkSize": 100,
+  "chunkCount": 23,
+  "chunks": [
+    "chunk-000.json",
+    "chunk-001.json",
+    "chunk-002.json",
+    "chunk-003.json",
+    "chunk-004.json",
+    "chunk-005.json",
+    "chunk-006.json",
+    "chunk-007.json",
+    "chunk-008.json",
+    "chunk-009.json",
+    "chunk-010.json",
+    "chunk-011.json",
+    "chunk-012.json",
+    "chunk-013.json",
+    "chunk-014.json",
+    "chunk-015.json",
+    "chunk-016.json",
+    "chunk-017.json",
+    "chunk-018.json",
+    "chunk-019.json",
+    "chunk-020.json",
+    "chunk-021.json",
+    "chunk-022.json"
+  ]
+}

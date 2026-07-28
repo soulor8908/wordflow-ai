@@ -6,10 +6,19 @@
  * - 每日仅发放一次新词（lastAdvancedDate === today → 当日已发放）
  * - 已有卡片的词（如收藏过）被跳过，cursor 仍推进，避免每日重复扫描
  *
- * 注：词书系统完整 UI（选书/自定义/滑杆预估）属 Week 4；本模块提供新词轨数据能力。
+ * 切片化加载（§4.4 性能优化）：
+ * - 词书分为 index.json + chunk-NNN.json（每 100 词/切片）
+ * - loadBookMeta 只拉 index.json（< 1KB），获取元数据
+ * - getTodayNewWords 只拉 cursor 所在的 1-2 个切片（~10KB），不全量加载
+ * - 兼容旧的扁平 {id}.json 格式
  */
 import { getItem, setItem, listItemsByPrefix } from "@/lib/storage/db";
-import type { WordBook } from "@/lib/content/word-book-schema";
+import {
+  wordBookSchema,
+  slicedBookIndexSchema,
+  type WordBook,
+  type WordEntry,
+} from "@/lib/content/word-book-schema";
 import type { NewWordCandidate } from "@/lib/review/today-queue";
 import type { WordCard } from "@/lib/review/fsrs-scheduler";
 
@@ -109,11 +118,156 @@ export function todayLocalDate(now: Date = new Date()): string {
   return `${y}-${m}-${d}`;
 }
 
-/** 加载编译后的词书 JSON（public/books/{id}.json） */
+// ───────────────────────── 切片化加载 ─────────────────────────
+
+/** 词书元数据（扁平或切片的公共字段） */
+export interface BookMeta {
+  id: string;
+  name: string;
+  description: string;
+  dailyNew: number;
+  wordCount: number;
+  sliced: boolean;
+  /** 切片化时的 chunk 信息 */
+  chunkSize?: number;
+  chunkCount?: number;
+  chunks?: string[];
+}
+
+const bookMetaCache = new Map<string, BookMeta>();
+const chunkCache = new Map<string, WordEntry[]>();
+
+/**
+ * 加载词书元数据（优先切片化 index.json，回退扁平 {id}.json）。
+ * 只拉取元数据，不加载词条，适用于 UI 展示词书列表。
+ */
+export async function loadBookMeta(bookId: string): Promise<BookMeta> {
+  if (bookMetaCache.has(bookId)) return bookMetaCache.get(bookId)!;
+
+  // 1. 尝试切片化格式：books/{id}/index.json
+  const slicedRes = await fetch(`/books/${bookId}/index.json`, {
+    cache: "force-cache",
+  });
+  if (slicedRes.ok) {
+    const raw = await slicedRes.json();
+    const parsed = slicedBookIndexSchema.safeParse(raw);
+    if (parsed.success) {
+      const meta: BookMeta = {
+        id: parsed.data.id,
+        name: parsed.data.name,
+        description: parsed.data.description,
+        dailyNew: parsed.data.dailyNew,
+        wordCount: parsed.data.wordCount,
+        sliced: true,
+        chunkSize: parsed.data.chunkSize,
+        chunkCount: parsed.data.chunkCount,
+        chunks: parsed.data.chunks,
+      };
+      bookMetaCache.set(bookId, meta);
+      return meta;
+    }
+  }
+
+  // 2. 回退扁平格式：books/{id}.json（兼容旧词书）
+  const flatRes = await fetch(`/books/${bookId}.json`, { cache: "force-cache" });
+  if (!flatRes.ok) throw new Error(`词书不存在: ${bookId}`);
+  const raw = await flatRes.json();
+  const parsed = wordBookSchema.safeParse(raw);
+  if (!parsed.success) throw new Error(`词书格式无效: ${bookId}`);
+  const meta: BookMeta = {
+    id: parsed.data.id,
+    name: parsed.data.name,
+    description: parsed.data.description,
+    dailyNew: parsed.data.dailyNew,
+    wordCount: parsed.data.words.length,
+    sliced: false,
+  };
+  bookMetaCache.set(bookId, meta);
+  // 扁平格式也缓存词条
+  chunkCache.set(`${bookId}:flat`, parsed.data.words);
+  return meta;
+}
+
+/**
+ * 加载切片文件（带内存缓存）。
+ */
+async function loadChunk(
+  bookId: string,
+  chunkFile: string
+): Promise<WordEntry[]> {
+  const cacheKey = `${bookId}:${chunkFile}`;
+  if (chunkCache.has(cacheKey)) return chunkCache.get(cacheKey)!;
+
+  const res = await fetch(`/books/${bookId}/${chunkFile}`, {
+    cache: "force-cache",
+  });
+  if (!res.ok) throw new Error(`切片加载失败: ${bookId}/${chunkFile}`);
+  const words = (await res.json()) as WordEntry[];
+  chunkCache.set(cacheKey, words);
+  return words;
+}
+
+/**
+ * 获取词书中 [offset, offset+limit) 范围的词条（按需加载切片）。
+ *
+ * 切片化词书只拉取覆盖该范围的 1-2 个切片（~10-20KB），而非全量加载。
+ */
+export async function getBookWords(
+  bookId: string,
+  offset: number,
+  limit: number
+): Promise<WordEntry[]> {
+  const meta = await loadBookMeta(bookId);
+
+  if (!meta.sliced) {
+    // 扁平格式：从缓存取
+    const all = chunkCache.get(`${bookId}:flat`) ?? [];
+    return all.slice(offset, offset + limit);
+  }
+
+  // 切片化：计算需要哪些切片
+  const chunkSize = meta.chunkSize!;
+  const startChunk = Math.floor(offset / chunkSize);
+  const endChunk = Math.floor((offset + limit - 1) / chunkSize);
+
+  const result: WordEntry[] = [];
+  for (let c = startChunk; c <= endChunk; c++) {
+    if (c >= meta.chunks!.length) break;
+    const chunkWords = await loadChunk(bookId, meta.chunks![c]);
+    const chunkOffset = c * chunkSize;
+    const localStart = Math.max(0, offset - chunkOffset);
+    const localEnd = Math.min(chunkWords.length, offset + limit - chunkOffset);
+    result.push(...chunkWords.slice(localStart, localEnd));
+  }
+  return result;
+}
+
+/** 兼容旧接口：加载完整词书（切片化时聚合所有 chunk） */
 export async function loadBook(bookId: string): Promise<WordBook> {
-  const res = await fetch(`/books/${bookId}.json`, { cache: "force-cache" });
-  if (!res.ok) throw new Error(`词书不存在: ${bookId}`);
-  return res.json() as Promise<WordBook>;
+  const meta = await loadBookMeta(bookId);
+  if (!meta.sliced) {
+    const flatRes = await fetch(`/books/${bookId}.json`, {
+      cache: "force-cache",
+    });
+    if (!flatRes.ok) throw new Error(`词书不存在: ${bookId}`);
+    return wordBookSchema.parse(await flatRes.json());
+  }
+  // 切片化：聚合所有 chunk（慎用，大词书会拉全量数据）
+  const allWords: WordEntry[] = [];
+  for (const chunkFile of meta.chunks!) {
+    allWords.push(...(await loadChunk(bookId, chunkFile)));
+  }
+  return {
+    id: meta.id,
+    name: meta.name,
+    description: meta.description,
+    dailyNew: meta.dailyNew,
+    sources: [
+      { level: "T0", name: "官方大纲" },
+      { level: "T2", name: "开源词表" },
+    ],
+    words: allWords,
+  };
 }
 
 export async function getBookProgress(
@@ -135,26 +289,34 @@ async function listExistingCardWords(): Promise<Set<string>> {
 /**
  * I/O：获取今日新词候选并推进游标（每日仅一次）。
  *
+ * 切片化优化：只加载 cursor 附近的 1-2 个切片，不全量加载词书。
+ *
  * @returns 新词候选列表（当日已发放或词书耗尽时为空数组）
  */
 export async function getTodayNewWords(
   bookId: string
 ): Promise<NewWordCandidate[]> {
-  const book = await loadBook(bookId);
+  const meta = await loadBookMeta(bookId);
   const now = new Date();
   const today = todayLocalDate(now);
 
   const existing = await getBookProgress(bookId);
   const cursor = existing?.cursor ?? 0;
-  const dailyNew = existing?.dailyNew ?? book.dailyNew;
+  const dailyNew = existing?.dailyNew ?? meta.dailyNew;
   const lastAdvancedDate = existing?.lastAdvancedDate;
 
   const existingCardWords = await listExistingCardWords();
 
+  // 切片化优化：只拉 cursor 到 cursor+dailyNew 范围的切片
+  // 多拉一些余量（2x），因为有些词可能被 existingCardWords 跳过
+  const fetchLimit = Math.max(dailyNew * 2, meta.sliced ? meta.chunkSize! : dailyNew * 3);
+  const words = await getBookWords(bookId, cursor, fetchLimit);
+  const bookWords = words.map((w) => w.word);
+
   const result = pickNewWordsFromBook({
     bookId,
-    bookWords: book.words.map((w) => w.word),
-    cursor,
+    bookWords,
+    cursor: 0, // 局部偏移，pickNewWordsFromBook 内部从 0 开始
     dailyNew,
     existingCardWords,
     today,
@@ -162,15 +324,17 @@ export async function getTodayNewWords(
   });
 
   // 仅在确实推进时写回（避免无谓写入）
+  const advancedBy = result.nextCursor; // 局部推进量
+  const nextCursor = cursor + advancedBy;
   const shouldPersist =
     !result.alreadyIssuedToday &&
-    (result.nextCursor !== cursor ||
+    (nextCursor !== cursor ||
       result.nextLastAdvancedDate !== lastAdvancedDate);
 
   if (shouldPersist) {
     const progress: BookProgress = {
       bookId,
-      cursor: result.nextCursor,
+      cursor: nextCursor,
       dailyNew,
       startedAt: existing?.startedAt ?? now.toISOString(),
       lastAdvancedDate: result.nextLastAdvancedDate,

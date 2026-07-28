@@ -1,0 +1,57 @@
+{
+  "id": "gaokao-core",
+  "name": "高考英语核心词",
+  "description": "高考英语大纲词汇，覆盖初高中阶段高频核心词（课标 3500 词）",
+  "dailyNew": 25,
+  "sources": [
+    {
+      "level": "T0",
+      "name": "教育部普通高中英语课程标准"
+    },
+    {
+      "level": "T2",
+      "name": "mahavivo/english-wordlists"
+    }
+  ],
+  "sliced": true,
+  "wordCount": 3438,
+  "chunkSize": 100,
+  "chunkCount": 35,
+  "chunks": [
+    "chunk-000.json",
+    "chunk-001.json",
+    "chunk-002.json",
+    "chunk-003.json",
+    "chunk-004.json",
+    "chunk-005.json",
+    "chunk-006.json",
+    "chunk-007.json",
+    "chunk-008.json",
+    "chunk-009.json",
+    "chunk-010.json",
+    "chunk-011.json",
+    "chunk-012.json",
+    "chunk-013.json",
+    "chunk-014.json",
+    "chunk-015.json",
+    "chunk-016.json",
+    "chunk-017.json",
+    "chunk-018.json",
+    "chunk-019.json",
+    "chunk-020.json",
+    "chunk-021.json",
+    "chunk-022.json",
+    "chunk-023.json",
+    "chunk-024.json",
+    "chunk-025.json",
+    "chunk-026.json",
+    "chunk-027.json",
+    "chunk-028.json",
+    "chunk-029.json",
+    "chunk-030.json",
+    "chunk-031.json",
+    "chunk-032.json",
+    "chunk-033.json",
+    "chunk-034.json"
+  ]
+}

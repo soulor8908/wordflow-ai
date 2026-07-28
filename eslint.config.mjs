@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     ".open-next/**",
     ".wrangler/**",
     "cloudflare-env.d.ts",
+    // CommonJS 构建脚本（非 TypeScript 模块）
+    "scripts/build-official-books.cjs",
   ]),
 ]);
 

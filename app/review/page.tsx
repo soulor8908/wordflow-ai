@@ -22,6 +22,7 @@ import { todayLocalDate } from "@/lib/review/book-queue";
 import { getActiveBook } from "@/lib/review/active-book";
 import { Button } from "@/components/ui/button";
 import { TrophyIcon, VolumeIcon } from "@/components/ui/icons";
+import { usePronunciation } from "@/lib/audio/use-pronunciation";
 
 type Phase = "loading" | "reviewing" | "done" | "no-book";
 
@@ -313,6 +314,7 @@ function CardBack({
   entry: DictEntry | null;
   loading: boolean;
 }) {
+  const { speak, speaking, supported: speechSupported } = usePronunciation();
   if (loading) {
     return <p className="text-sm text-neutral-400">加载释义…</p>;
   }
@@ -331,20 +333,18 @@ function CardBack({
         {entry.pos && (
           <span className="text-sm italic text-neutral-400">{entry.pos}</span>
         )}
-        {typeof window !== "undefined" && "speechSynthesis" in window && (
+        {speechSupported && (
           <Button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              const u = new SpeechSynthesisUtterance(entry.word);
-              u.lang = "en-US";
-              window.speechSynthesis.speak(u);
+              speak(entry.word);
             }}
-            variant="secondary"
+            variant={speaking ? "primary" : "secondary"}
             size="sm"
             aria-label={`发音 ${entry.word}`}
           >
-            <VolumeIcon title="发音" className="h-4 w-4" />
+            <VolumeIcon title="发音" className={`h-4 w-4 ${speaking ? "animate-pulse text-blue-500" : ""}`} />
           </Button>
         )}
       </div>

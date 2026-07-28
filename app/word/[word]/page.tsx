@@ -16,6 +16,7 @@ import {
 } from "@/lib/review/favorite";
 import { Button } from "@/components/ui/button";
 import { PlusIcon, VolumeIcon } from "@/components/ui/icons";
+import { usePronunciation } from "@/lib/audio/use-pronunciation";
 
 export default function WordPage({
   params,
@@ -28,6 +29,7 @@ export default function WordPage({
   const [entry, setEntry] = useState<DictEntry | null | undefined>(undefined);
   const [favorited, setFavorited] = useState(false);
   const [toggling, setToggling] = useState(false);
+  const { speak, speaking, supported: speechSupported } = usePronunciation();
 
   useEffect(() => {
     let cancelled = false;
@@ -121,19 +123,15 @@ export default function WordPage({
             <span className="font-mono text-lg text-neutral-500">
               {entry.phonetic}
             </span>
-            {typeof window !== "undefined" && "speechSynthesis" in window && (
+            {speechSupported && (
               <Button
                 type="button"
-                onClick={() => {
-                  const u = new SpeechSynthesisUtterance(entry.word);
-                  u.lang = "en-US";
-                  window.speechSynthesis.speak(u);
-                }}
-                variant="secondary"
+                onClick={() => speak(entry.word)}
+                variant={speaking ? "primary" : "secondary"}
                 size="sm"
                 aria-label={`发音 ${entry.word}`}
               >
-                <VolumeIcon title="发音" className="h-4 w-4" />
+                <VolumeIcon title="发音" className={`h-4 w-4 ${speaking ? "animate-pulse text-blue-500" : ""}`} />
                 <span>发音</span>
               </Button>
             )}

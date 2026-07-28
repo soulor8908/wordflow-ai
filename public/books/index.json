@@ -3,38 +3,46 @@
     {
       "id": "cet4-core",
       "name": "CET-4 大学英语四级核心词",
-      "description": "大学英语四级高频核心词汇，覆盖听读写译高频词",
+      "description": "大学英语四级大纲词汇，覆盖听读写译高频词（教育部大纲 4615 词）",
       "level": "CET-4",
-      "wordCount": 40,
+      "wordCount": 4483,
       "dailyNew": 20,
-      "color": "blue"
+      "color": "blue",
+      "sliced": true,
+      "chunkCount": 45
     },
     {
       "id": "cet6-core",
       "name": "CET-6 大学英语六级核心词",
-      "description": "大学英语六级进阶词汇，覆盖学术、商务、社会话题高频词",
+      "description": "大学英语六级大纲词汇，覆盖学术、商务、社会话题高频词（大纲 2089 词）",
       "level": "CET-6",
-      "wordCount": 40,
+      "wordCount": 2218,
       "dailyNew": 20,
-      "color": "purple"
+      "color": "purple",
+      "sliced": true,
+      "chunkCount": 23
     },
     {
       "id": "gaokao-core",
       "name": "高考英语核心词",
-      "description": "高考英语3500词精选，覆盖初高中阶段高频核心词",
+      "description": "高考英语大纲词汇，覆盖初高中阶段高频核心词（课标 3500 词）",
       "level": "高考",
-      "wordCount": 40,
+      "wordCount": 3438,
       "dailyNew": 25,
-      "color": "green"
+      "color": "green",
+      "sliced": true,
+      "chunkCount": 35
     },
     {
       "id": "kaoyan-core",
-      "name": "考研核心词",
-      "description": "考研英语高频核心词汇，覆盖历年真题高频词与学术词汇",
+      "name": "考研英语核心词",
+      "description": "全国硕士研究生入学考试英语大纲词汇，覆盖历年真题高频词与学术词汇（大纲 5500 词）",
       "level": "考研",
-      "wordCount": 40,
+      "wordCount": 5360,
       "dailyNew": 20,
-      "color": "orange"
+      "color": "orange",
+      "sliced": true,
+      "chunkCount": 54
     }
   ]
 }

@@ -14,6 +14,8 @@ export const bookMetaSchema = z.object({
   wordCount: z.number().int().positive(),
   dailyNew: z.number().int().positive(),
   color: z.enum(["blue", "purple", "green", "orange", "red", "amber"]),
+  sliced: z.boolean().optional(),
+  chunkCount: z.number().int().optional(),
 });
 
 export const bookIndexSchema = z.object({
