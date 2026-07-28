@@ -217,9 +217,9 @@ export default function ReviewPage() {
   const isNew = currentItem!.type === "new";
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col px-4 py-6">
+    <main className="mx-auto flex h-[100dvh] w-full max-w-2xl flex-col overflow-hidden px-4 py-4">
       {/* 进度条 */}
-      <div className="flex flex-col gap-1">
+      <div className="flex shrink-0 flex-col gap-1">
         <div className="flex items-center justify-between text-xs text-neutral-500">
           <span>
             第 {index + 1} / {total} 张
@@ -244,13 +244,13 @@ export default function ReviewPage() {
         disabled={submitting}
         aria-label={flipped ? "点击返回正面" : "点击翻面查看释义"}
         variant="ghost"
-        className="mt-6 flex min-h-[18rem] flex-1 flex-col items-center justify-center gap-4 rounded-2xl border border-neutral-200 bg-white px-6 py-8 text-center shadow-sm dark:border-neutral-800 dark:bg-neutral-950"
+        className="mt-4 flex max-h-[55vh] min-h-[12rem] flex-1 flex-col items-center justify-center gap-3 overflow-y-auto rounded-2xl border border-neutral-200 bg-white px-5 py-6 text-center shadow-sm dark:border-neutral-800 dark:bg-neutral-950"
       >
         {!flipped ? (
           <>
-            <h1 className="text-5xl font-bold tracking-tight">{word}</h1>
+            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">{word}</h1>
             {!entryLoading && entry?.phonetic && (
-              <span className="font-mono text-lg text-neutral-500">
+              <span className="font-mono text-base text-neutral-500 sm:text-lg">
                 {entry.phonetic}
               </span>
             )}
@@ -264,7 +264,7 @@ export default function ReviewPage() {
       </Button>
 
       {/* 反馈按钮 */}
-      <div className="mt-6 flex flex-col gap-2">
+      <div className="mt-4 flex shrink-0 flex-col gap-2 pb-2">
         {!flipped ? (
           <p className="text-center text-xs text-neutral-400">
             翻面后选择掌握程度

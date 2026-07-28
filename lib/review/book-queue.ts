@@ -289,6 +289,9 @@ async function listExistingCardWords(): Promise<Set<string>> {
 /**
  * I/O：获取今日新词候选并推进游标（每日仅一次）。
  *
+ * 幂等性：使用"今日候选缓存"确保同一天多次调用返回相同的候选词，
+ * 不受 React StrictMode 双重调用或页面刷新影响。
+ *
  * 切片化优化：只加载 cursor 附近的 1-2 个切片，不全量加载词书。
  *
  * @returns 新词候选列表（当日已发放或词书耗尽时为空数组）
@@ -300,48 +303,67 @@ export async function getTodayNewWords(
   const now = new Date();
   const today = todayLocalDate(now);
 
+  // 幂等检查：今日已缓存的候选词直接返回（防 StrictMode 双重调用 + 页面刷新）
+  const todayCacheKey = `book:${bookId}:today-candidates`;
+  const cached = await getItem<{
+    date: string;
+    candidates: NewWordCandidate[];
+  }>(todayCacheKey);
+  if (cached && cached.date === today) {
+    return cached.candidates;
+  }
+
   const existing = await getBookProgress(bookId);
   const cursor = existing?.cursor ?? 0;
   const dailyNew = existing?.dailyNew ?? meta.dailyNew;
   const lastAdvancedDate = existing?.lastAdvancedDate;
 
+  // 今日已推进过 cursor → 缓存空数组，不再重复发放
+  if (lastAdvancedDate === today) {
+    await setItem(todayCacheKey, { date: today, candidates: [] });
+    return [];
+  }
+
   const existingCardWords = await listExistingCardWords();
 
   // 切片化优化：只拉 cursor 到 cursor+dailyNew 范围的切片
-  // 多拉一些余量（2x），因为有些词可能被 existingCardWords 跳过
-  const fetchLimit = Math.max(dailyNew * 2, meta.sliced ? meta.chunkSize! : dailyNew * 3);
+  const fetchLimit = Math.max(
+    dailyNew * 2,
+    meta.sliced ? meta.chunkSize! : dailyNew * 3
+  );
   const words = await getBookWords(bookId, cursor, fetchLimit);
   const bookWords = words.map((w) => w.word);
 
   const result = pickNewWordsFromBook({
     bookId,
     bookWords,
-    cursor: 0, // 局部偏移，pickNewWordsFromBook 内部从 0 开始
+    cursor: 0,
     dailyNew,
     existingCardWords,
     today,
-    lastAdvancedDate,
+    lastAdvancedDate, // 已确认 !== today
   });
 
-  // 仅在确实推进时写回（避免无谓写入）
-  const advancedBy = result.nextCursor; // 局部推进量
+  // 推进 cursor + 持久化
+  const advancedBy = result.nextCursor;
   const nextCursor = cursor + advancedBy;
-  const shouldPersist =
-    !result.alreadyIssuedToday &&
-    (nextCursor !== cursor ||
-      result.nextLastAdvancedDate !== lastAdvancedDate);
-
-  if (shouldPersist) {
+  if (nextCursor !== cursor) {
     const progress: BookProgress = {
       bookId,
       cursor: nextCursor,
       dailyNew,
       startedAt: existing?.startedAt ?? now.toISOString(),
-      lastAdvancedDate: result.nextLastAdvancedDate,
+      lastAdvancedDate: today,
       updatedAt: now.toISOString(),
     };
     await saveBookProgress(progress);
   }
+
+  // 缓存今日候选词（即使为空也缓存，避免重复计算）
+  await setItem(todayCacheKey, {
+    date: today,
+    candidates: result.candidates,
+  });
 
   return result.candidates;
 }
