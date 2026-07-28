@@ -829,7 +829,7 @@ function main(): void {
     const enrich = DICT_ENRICHMENTS[word];
 
     // base = 现有切片富数据（若有）+ ECDICT 增强数据（若有）
-    const base: DictEntry = { ...(existing ?? {}), ...(enrich ?? {}) };
+    const base: Partial<DictEntry> = { ...(existing ?? {}), ...(enrich ?? {}) };
     // 词书数据覆盖基础字段（pos/translation/frequency/tags），但保留 base 的富字段
     const entry: DictEntry = {
       ...base,
