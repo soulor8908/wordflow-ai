@@ -11,16 +11,24 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getStreak, listStudyLogs, type StudyLog } from "@/lib/stats/streak-io";
-import { countByPrefix } from "@/lib/storage/db";
+import { countByPrefix, listItemsByPrefix } from "@/lib/storage/db";
 import { todayLocalDate } from "@/lib/review/book-queue";
+import type { WordCard } from "@/lib/review/fsrs-scheduler";
 import { Button } from "@/components/ui/button";
 import PwaSettings from "./pwa-settings";
+
+interface ErrorWord {
+  word: string;
+  errorCount: number;
+  lastErrorAt?: string;
+}
 
 interface StatsData {
   streak: { currentStreak: number; longestStreak: number } | null;
   todayLog: StudyLog | null;
   totalCards: number;
   logs: StudyLog[];
+  errorWords: ErrorWord[];
 }
 
 export default function StatsPage() {
@@ -31,14 +39,25 @@ export default function StatsPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [streak, logs, totalCards] = await Promise.all([
+        const [streak, logs, totalCards, cards] = await Promise.all([
           getStreak(),
           listStudyLogs(),
           countByPrefix("card:"),
+          listItemsByPrefix<WordCard>("card:"),
         ]);
         if (cancelled) return;
         const today = todayLocalDate();
         const todayLog = logs.find((l) => l.date === today) ?? null;
+        // 常错词：errorCount > 0，按错误次数降序，取前 20 个
+        const errorWords = cards
+          .filter((c) => (c.errorCount ?? 0) > 0)
+          .map((c) => ({
+            word: c.word,
+            errorCount: c.errorCount ?? 0,
+            lastErrorAt: c.lastErrorAt,
+          }))
+          .sort((a, b) => b.errorCount - a.errorCount)
+          .slice(0, 20);
         setData({
           streak: streak
             ? {
@@ -49,6 +68,7 @@ export default function StatsPage() {
           todayLog,
           totalCards,
           logs,
+          errorWords,
         });
       } catch (e) {
         if (!cancelled) {
@@ -184,6 +204,32 @@ export default function StatsPage() {
         <span className="text-neutral-500">已入队卡片：</span>
         <span className="font-mono font-medium">{data.totalCards}</span>
         <span className="text-neutral-400"> 张</span>
+      </section>
+
+      {/* 常错词：复习中 Again/Hard 评分累计，按错误次数降序 */}
+      <section className="rounded-lg border border-neutral-200 px-4 py-4 dark:border-neutral-800">
+        <h2 className="mb-3 text-sm font-medium text-neutral-700 dark:text-neutral-300">
+          常错词（最近 {data.errorWords.length} 个）
+        </h2>
+        {data.errorWords.length > 0 ? (
+          <ul className="flex flex-col gap-1.5">
+            {data.errorWords.map((word) => (
+              <li key={word.word}>
+                <Link
+                  href={`/word/${encodeURIComponent(word.word)}`}
+                  className="flex items-center justify-between rounded-lg bg-neutral-50 px-3 py-2 text-sm hover:bg-neutral-100 dark:bg-neutral-900 dark:hover:bg-neutral-800"
+                >
+                  <span className="font-mono">{word.word}</span>
+                  <span className="text-xs text-red-500">错误 {word.errorCount} 次</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-neutral-500">
+            暂无常错词记录，复习时标记&ldquo;忘记/模糊&rdquo;会自动累计
+          </p>
+        )}
       </section>
 
       {/* PWA 设置：通知权限 + 静默开关 */}

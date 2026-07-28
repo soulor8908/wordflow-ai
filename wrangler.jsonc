@@ -4,25 +4,11 @@
 	"name": "wordflow-ai",
 	"compatibility_date": "2026-07-27",
 	"compatibility_flags": [
-		"nodejs_compat",
-		"global_fetch_strictly_public"
+		"nodejs_compat"
 	],
 	"assets": {
 		"directory": ".open-next/assets",
 		"binding": "ASSETS"
-	},
-	"services": [
-		{
-			// Self-reference service binding, the service name must match the worker name
-			// see https://opennext.js.org/cloudflare/caching
-			"binding": "WORKER_SELF_REFERENCE",
-			"service": "wordflow-ai"
-		}
-	],
-	"images": {
-		// Enable image optimization
-		// see https://opennext.js.org/cloudflare/howtos/image
-		"binding": "IMAGES"
 	},
 	"ai": {
 		// Cloudflare Workers AI：免费 AI 推理，无需 API Key

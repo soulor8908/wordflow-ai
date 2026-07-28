@@ -431,7 +431,6 @@ export async function peekTodayNewWordCount(
  *
  * 刷题模式不受 FSRS 调度限制，用户可主动遍历整本词书。
  * 分批加载避免单次请求过大，每批 500 词。
- * 不推进 cursor，不影响 FSRS 学习进度。
  *
  * @param bookId 词书 ID
  * @param onProgress 可选进度回调（已加载数 / 总数）
@@ -451,4 +450,60 @@ export async function loadAllBookWords(
     onProgress?.(all.length, meta.wordCount);
   }
   return all;
+}
+
+/**
+ * 显式推进词书 cursor（用于刷题模式评分后）。
+ *
+ * 刷题模式评分会落库并影响 FSRS 进度，同时推进 cursor
+ * 以确保已刷过的词不会在 FSRS 模式的新词轨中再次出现。
+ *
+ * @param bookId 词书 ID
+ * @param newCursor 新的 cursor 值（通常是当前已刷到的最大位置）
+ */
+export async function advanceCursor(
+  bookId: string,
+  newCursor: number
+): Promise<void> {
+  const now = new Date();
+  const today = todayLocalDate(now);
+  const existing = await getBookProgress(bookId);
+  const meta = await loadBookMeta(bookId);
+  const progress: BookProgress = {
+    bookId,
+    cursor: Math.max(newCursor, existing?.cursor ?? 0),
+    dailyNew: existing?.dailyNew ?? meta.dailyNew,
+    startedAt: existing?.startedAt ?? now.toISOString(),
+    lastAdvancedDate: today,
+    updatedAt: now.toISOString(),
+  };
+  await saveBookProgress(progress);
+}
+
+/**
+ * 设置词书每日新词量（用户在 /me 页或 AI 聊天中调整）。
+ *
+ * 写入 BookProgress.dailyNew，仅影响后续新词发放数量，不影响已入队卡片。
+ * 范围限制：1-100，避免极端值（0 会让词书永远不发放新词；过大会一次性塞爆复习队列）。
+ *
+ * @returns 更新后的 dailyNew；若未选词书则返回 null
+ */
+export async function setBookDailyNew(
+  bookId: string,
+  dailyNew: number
+): Promise<number | null> {
+  const clamped = Math.max(1, Math.min(100, Math.floor(dailyNew)));
+  const now = new Date();
+  const today = todayLocalDate(now);
+  const existing = await getBookProgress(bookId);
+  const progress: BookProgress = {
+    bookId,
+    cursor: existing?.cursor ?? 0,
+    dailyNew: clamped,
+    startedAt: existing?.startedAt ?? now.toISOString(),
+    lastAdvancedDate: existing?.lastAdvancedDate ?? today,
+    updatedAt: now.toISOString(),
+  };
+  await saveBookProgress(progress);
+  return clamped;
 }

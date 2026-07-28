@@ -184,9 +184,12 @@ export default function MePage() {
               <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-600 dark:bg-amber-950">
                 学习中 {cardStat.byStatus.learning}
               </span>
-              <span className="rounded-full bg-green-50 px-2 py-0.5 text-green-600 dark:bg-green-950">
-                已掌握 {cardStat.byStatus.mastered}
-              </span>
+              {/* "已掌握"通过刷题模式中长按"认识"标记，仅在 > 0 时展示，避免未学用户看到误导性的死 UI */}
+              {cardStat.byStatus.mastered > 0 && (
+                <span className="rounded-full bg-green-50 px-2 py-0.5 text-green-600 dark:bg-green-950">
+                  已掌握 {cardStat.byStatus.mastered}
+                </span>
+              )}
             </div>
             <ul className="flex flex-col gap-1.5">
               {cardStat.recent.map((c) => (

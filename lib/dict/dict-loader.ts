@@ -12,9 +12,26 @@ export interface DictExample {
   zh: string;
 }
 
+/** 常见搭配（动名/形名/介词搭配等） */
+export interface DictCollocation {
+  /** 搭配类型，如 "verb+noun" / "adj+noun" / "prep+noun" */
+  type?: string;
+  /** 搭配英文，如 "abandon hope" */
+  en: string;
+  /** 搭配中文释义，如 "放弃希望" */
+  zh?: string;
+}
+
 /**
  * 词典词条（对齐 ECDICT 字段 + 设计文档 §3.2 词条页信息层级）
  * ECDICT 原始字段：word/phonetic/definition/translation/pos/tag/frq/bnc/collins/oxford/exchange
+ *
+ * 联想学习字段（设计文档 §3.2 词条页联想记忆区）：
+ * - root：词根词缀助记（已有）
+ * - synonyms：同近义词（已有）
+ * - antonyms：反义词
+ * - collocations：常见搭配
+ * - wordFamily：词族派生（名词/动词/形容词/副词形式）
  */
 export interface DictEntry {
   word: string;
@@ -36,6 +53,12 @@ export interface DictEntry {
   examples?: DictExample[];
   /** 同近义词 */
   synonyms?: string[];
+  /** 反义词（联想记忆：对比成对记忆，如 abandon ↔ retain） */
+  antonyms?: string[];
+  /** 常见搭配（联想记忆：在真实语境中如何使用） */
+  collocations?: DictCollocation[];
+  /** 词族派生（联想记忆：同源词形变化，如 abandon → abandonment） */
+  wordFamily?: string[];
 }
 
 /** 计算词条所属切片 key（前 2 字符小写；短词回退到整词） */

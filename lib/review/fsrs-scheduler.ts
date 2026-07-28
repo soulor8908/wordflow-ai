@@ -27,6 +27,10 @@ export interface WordCard extends Omit<Card, "state"> {
   source: string;
   /** V1-V4 记忆验证级别 */
   verification: "unverified" | "V1" | "V2" | "V3" | "mastered";
+  /** 累计错误次数（Again + Hard 评分次数，用于常错词统计） */
+  errorCount?: number;
+  /** 最近一次错误时刻（ISO，用于常错词排序） */
+  lastErrorAt?: string;
 }
 
 export interface WordReviewLog extends Omit<ReviewLog, "rating" | "state"> {

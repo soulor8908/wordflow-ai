@@ -20,13 +20,15 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { listDueCards, buildTodayQueue, type TodayQueueItem } from "@/lib/review/today-queue";
-import { getTodayNewWords, loadAllBookWords } from "@/lib/review/book-queue";
-import { submitReview, type ReviewOutcome } from "@/lib/review/review-session";
+import { getTodayNewWords, advanceCursor, getBookWords, loadBookMeta } from "@/lib/review/book-queue";
+import { submitReview, markWordAsMastered, type ReviewOutcome } from "@/lib/review/review-session";
 import { findEntry, type DictEntry } from "@/lib/dict/dict-loader";
 import type { Rating } from "@/lib/review/fsrs-scheduler";
 import { recordStudy } from "@/lib/stats/streak-io";
 import { todayLocalDate } from "@/lib/review/book-queue";
 import { getActiveBook } from "@/lib/review/active-book";
+import { listItemsByPrefix } from "@/lib/storage/db";
+import type { WordCard } from "@/lib/review/fsrs-scheduler";
 import { Button } from "@/components/ui/button";
 import { TrophyIcon, VolumeIcon } from "@/components/ui/icons";
 import { usePronunciation } from "@/lib/audio/use-pronunciation";
@@ -394,46 +396,87 @@ function FsrsReview() {
 function DrillMode() {
   const [drillPhase, setDrillPhase] = useState<DrillPhase>("selecting");
   const [order, setOrder] = useState<DrillOrder>("sequential");
+  const [filterMastered, setFilterMastered] = useState(true);
   const [words, setWords] = useState<string[]>([]);
+  const [wordOffsets, setWordOffsets] = useState<number[]>([]);
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [entry, setEntry] = useState<DictEntry | null>(null);
   const [loadedForWord, setLoadedForWord] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadProgress, setLoadProgress] = useState<{ loaded: number; total: number } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [outcomes, setOutcomes] = useState<ReviewOutcome[]>([]);
+  const [masteredCount, setMasteredCount] = useState(0);
+  const [activeBookId, setActiveBookId] = useState<string | null>(null);
 
-  // 开始刷题：加载词库全部词条
-  const startDrill = useCallback(async (selectedOrder: DrillOrder) => {
-    setDrillPhase("loading");
-    setLoadError(null);
-    setLoadProgress({ loaded: 0, total: 0 });
-    try {
-      const active = await getActiveBook();
-      if (!active) {
-        setLoadError("还没有选择词库，请先选词库");
+  // 开始刷题：加载词库全部词条，按需过滤已掌握
+  const startDrill = useCallback(
+    async (selectedOrder: DrillOrder, filter: boolean) => {
+      setDrillPhase("loading");
+      setLoadError(null);
+      setLoadProgress({ loaded: 0, total: 0 });
+      setOutcomes([]);
+      setMasteredCount(0);
+      try {
+        const active = await getActiveBook();
+        if (!active) {
+          setLoadError("还没有选择词库，请先选词库");
+          setDrillPhase("selecting");
+          return;
+        }
+        setActiveBookId(active.bookId);
+
+        // 收集已掌握词（用于过滤）
+        const existingCards = await listItemsByPrefix<WordCard>("card:");
+        const masteredWords = new Set(
+          existingCards
+            .filter((c) => c.verification === "mastered")
+            .map((c) => (c.word ?? "").toLowerCase())
+            .filter(Boolean)
+        );
+
+        // 加载全部词书词，保留原始 offset 用于推进 cursor
+        const meta = await loadBookMeta(active.bookId);
+        const allWords: { word: string; offset: number }[] = [];
+        const batchSize = 500;
+        for (let offset = 0; offset < meta.wordCount; offset += batchSize) {
+          const limit = Math.min(batchSize, meta.wordCount - offset);
+          const words = await getBookWords(active.bookId, offset, limit);
+          words.forEach((w, i) => {
+            const wlower = w.word.toLowerCase();
+            if (filter && masteredWords.has(wlower)) return;
+            allWords.push({ word: w.word, offset: offset + i });
+          });
+          setLoadProgress({ loaded: allWords.length, total: meta.wordCount });
+        }
+
+        if (allWords.length === 0) {
+          setLoadError(filter ? "词库全部已掌握，可关闭过滤重刷" : "词库为空");
+          setDrillPhase("selecting");
+          return;
+        }
+
+        // 排序或洗牌
+        const sorted =
+          selectedOrder === "sequential"
+            ? allWords.sort((a, b) => a.offset - b.offset)
+            : shuffle(allWords);
+
+        setOrder(selectedOrder);
+        setFilterMastered(filter);
+        setWords(sorted.map((w) => w.word));
+        setWordOffsets(sorted.map((w) => w.offset));
+        setIndex(0);
+        setFlipped(false);
+        setDrillPhase("running");
+      } catch (e) {
+        setLoadError(e instanceof Error ? e.message : "加载词库失败");
         setDrillPhase("selecting");
-        return;
       }
-      const allWords = await loadAllBookWords(active.bookId, (loaded, total) => {
-        setLoadProgress({ loaded, total });
-      });
-      if (allWords.length === 0) {
-        setLoadError("词库为空");
-        setDrillPhase("selecting");
-        return;
-      }
-      const finalWords =
-        selectedOrder === "random" ? shuffle(allWords) : allWords;
-      setOrder(selectedOrder);
-      setWords(finalWords);
-      setIndex(0);
-      setFlipped(false);
-      setDrillPhase("running");
-    } catch (e) {
-      setLoadError(e instanceof Error ? e.message : "加载词库失败");
-      setDrillPhase("selecting");
-    }
-  }, []);
+    },
+    []
+  );
 
   const currentWord = words[index] ?? null;
   const entryLoading = currentWord !== loadedForWord;
@@ -459,42 +502,117 @@ function DrillMode() {
   }, [index, drillPhase, currentWord]);
 
   const flip = useCallback(() => {
+    if (submitting) return;
     setFlipped((f) => !f);
-  }, []);
+  }, [submitting]);
 
-  const goNext = useCallback(() => {
+  // 评分落库 + 推进 cursor + 影响 FSRS 进度
+  const handleRate = useCallback(
+    async (rating: Rating) => {
+      if (submitting || !currentWord || !flipped) return;
+      setSubmitting(true);
+      try {
+        const offset = wordOffsets[index];
+        const item: TodayQueueItem = {
+          type: "new",
+          word: currentWord,
+          source: activeBookId ? `book:${activeBookId}` : "drill",
+        };
+        const outcome = await submitReview(item, rating, "standard");
+        // 推进 cursor 到当前位置 + 1，避免 FSRS 新词轨重复发放
+        if (activeBookId) {
+          await advanceCursor(activeBookId, offset + 1);
+        }
+        // Streak 累加
+        const correct = rating === "Good" || rating === "Easy" ? 1 : 0;
+        await recordStudy(
+          todayLocalDate(),
+          {
+            newCount: 1,
+            reviewCount: 0,
+            correctCount: correct,
+          }
+        ).catch(() => {});
+        setOutcomes((prev) => [...prev, outcome]);
+        setFlipped(false);
+        if (index + 1 >= words.length) {
+          setDrillPhase("done");
+        } else {
+          setIndex(index + 1);
+        }
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [submitting, currentWord, flipped, wordOffsets, index, activeBookId, words.length]
+  );
+
+  // 长按"认识"= 直接标记已掌握（不评分，跳过 FSRS）
+  const handleMarkMastered = useCallback(async () => {
+    if (submitting || !currentWord) return;
+    setSubmitting(true);
+    try {
+      const offset = wordOffsets[index];
+      await markWordAsMastered(currentWord, activeBookId ? `book:${activeBookId}` : "drill");
+      if (activeBookId) {
+        await advanceCursor(activeBookId, offset + 1);
+      }
+      await recordStudy(
+        todayLocalDate(),
+        { newCount: 1, reviewCount: 0, correctCount: 1 }
+      ).catch(() => {});
+      setMasteredCount((n) => n + 1);
+      setFlipped(false);
+      if (index + 1 >= words.length) {
+        setDrillPhase("done");
+      } else {
+        setIndex(index + 1);
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }, [submitting, currentWord, wordOffsets, index, activeBookId, words.length]);
+
+  const goPrev = useCallback(() => {
+    if (index === 0 || submitting) return;
+    setFlipped(false);
+    setIndex(index - 1);
+  }, [index, submitting]);
+
+  const skip = useCallback(() => {
+    if (submitting) return;
     setFlipped(false);
     if (index + 1 >= words.length) {
       setDrillPhase("done");
     } else {
       setIndex(index + 1);
     }
-  }, [index, words.length]);
+  }, [index, words.length, submitting]);
 
-  const goPrev = useCallback(() => {
-    if (index === 0) return;
-    setFlipped(false);
-    setIndex(index - 1);
-  }, [index]);
-
-  // 键盘：空格翻面，← → 翻页
+  // 键盘：空格翻面，1/2/3/4 评分，← 上一个，s 跳过，m 标记掌握
   useEffect(() => {
     if (drillPhase !== "running") return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === " " || e.key === "Enter") {
         e.preventDefault();
         flip();
-      } else if (e.key === "ArrowRight") {
-        e.preventDefault();
-        goNext();
-      } else if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        goPrev();
+      } else if (flipped && !submitting) {
+        if (e.key === "1") handleRate("Again");
+        else if (e.key === "2") handleRate("Hard");
+        else if (e.key === "3") handleRate("Good");
+        else if (e.key === "4") handleRate("Easy");
+        else if (e.key === "m" || e.key === "M") handleMarkMastered();
+        else if (e.key === "s" || e.key === "S") skip();
+      } else if (!submitting) {
+        if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          goPrev();
+        }
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [drillPhase, flip, goNext, goPrev]);
+  }, [drillPhase, flipped, submitting, flip, handleRate, handleMarkMastered, skip, goPrev]);
 
   // 选择页
   if (drillPhase === "selecting") {
@@ -503,16 +621,25 @@ function DrillMode() {
         <div>
           <h1 className="text-2xl font-bold">刷题模式</h1>
           <p className="mt-2 text-sm text-neutral-500">
-            遍历整本词库，不受 FSRS 调度限制，不影响复习进度
+            批量过词、标记已会词。评分会落库并影响 FSRS 进度，已掌握词不会再进复习队列
           </p>
         </div>
         {loadError && (
           <p className="text-sm text-red-500">{loadError}</p>
         )}
+        <label className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-400">
+          <input
+            type="checkbox"
+            checked={filterMastered}
+            onChange={(e) => setFilterMastered(e.target.checked)}
+            className="h-3.5 w-3.5"
+          />
+          过滤已掌握的词（推荐）
+        </label>
         <div className="flex w-full max-w-xs flex-col gap-2">
           <Button
             type="button"
-            onClick={() => startDrill("sequential")}
+            onClick={() => startDrill("sequential", filterMastered)}
             variant="primary"
             className="w-full py-3"
           >
@@ -520,7 +647,7 @@ function DrillMode() {
           </Button>
           <Button
             type="button"
-            onClick={() => startDrill("random")}
+            onClick={() => startDrill("random", filterMastered)}
             variant="secondary"
             className="w-full py-3"
           >
@@ -528,7 +655,7 @@ function DrillMode() {
           </Button>
         </div>
         <p className="text-xs text-neutral-400">
-          刷题不评分、不落库，随时可退出
+          评分落库 · 推进进度 · 长按&ldquo;已会&rdquo;直接标记掌握
         </p>
       </div>
     );
@@ -550,6 +677,11 @@ function DrillMode() {
 
   // 完成页
   if (drillPhase === "done") {
+    const reviewed = outcomes.length;
+    const newMastered = masteredCount;
+    const errors = outcomes.filter(
+      (o) => o.rating === "Again" || o.rating === "Hard"
+    ).length;
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-6 text-center">
         <h1 className="flex items-center justify-center gap-2 text-3xl font-bold">
@@ -557,12 +689,17 @@ function DrillMode() {
           <span>刷题完成</span>
         </h1>
         <p className="text-sm text-neutral-500">
-          已刷完 {words.length} 个词
+          已刷 {reviewed + newMastered} 词 · 评分 {reviewed} · 标记掌握 {newMastered}
         </p>
+        {errors > 0 && (
+          <p className="text-xs text-amber-600">
+            其中 {errors} 词答错，已加入 FSRS 复习队列
+          </p>
+        )}
         <div className="flex gap-3">
           <Button
             type="button"
-            onClick={() => startDrill(order)}
+            onClick={() => startDrill(order, filterMastered)}
             variant="secondary"
           >
             再刷一遍
@@ -575,10 +712,7 @@ function DrillMode() {
             换种方式
           </Button>
         </div>
-        <Link
-          href="/"
-          className="text-xs text-neutral-400 hover:underline"
-        >
+        <Link href="/" className="text-xs text-neutral-400 hover:underline">
           返回首页
         </Link>
       </div>
@@ -597,10 +731,14 @@ function DrillMode() {
         <div className="flex items-center justify-between text-xs text-neutral-500">
           <span>
             第 {index + 1} / {total} 词
+            {masteredCount > 0 && (
+              <span className="ml-2 text-green-500">已标记 {masteredCount}</span>
+            )}
           </span>
           <div className="flex items-center gap-3">
             <span className="text-neutral-400">
               {order === "sequential" ? "顺序" : "随机"}
+              {filterMastered ? " · 过滤已掌握" : ""}
             </span>
             <button
               type="button"
@@ -623,6 +761,7 @@ function DrillMode() {
       <Button
         type="button"
         onClick={flip}
+        disabled={submitting}
         aria-label={flipped ? "点击返回正面" : "点击翻面查看释义"}
         variant="ghost"
         className="mt-4 flex max-h-[55vh] min-h-[12rem] flex-1 flex-col items-center justify-center gap-3 overflow-y-auto rounded-2xl border border-neutral-200 bg-white px-5 py-6 text-center shadow-sm dark:border-neutral-800 dark:bg-neutral-950"
@@ -644,35 +783,80 @@ function DrillMode() {
         )}
       </Button>
 
-      {/* 导航按钮：不评分，只前进/后退 */}
+      {/* 反馈按钮 */}
       <div className="mt-4 flex shrink-0 flex-col gap-2 pb-2">
         {!flipped ? (
           <p className="text-center text-xs text-neutral-400">
-            翻面查看释义
+            翻面后选择掌握程度
           </p>
         ) : (
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              type="button"
-              onClick={goPrev}
-              variant="secondary"
-              disabled={index === 0}
-              className="py-3"
-            >
-              ← 上一个
-            </Button>
-            <Button
-              type="button"
-              onClick={goNext}
-              variant="primary"
-              className="py-3"
-            >
-              {index + 1 >= total ? "完成 →" : "下一个 →"}
-            </Button>
+          <div className="grid grid-cols-4 gap-1.5">
+            <RatingButton
+              label="忘记"
+              hint="1"
+              color="red"
+              disabled={submitting}
+              onClick={() => handleRate("Again")}
+            />
+            <RatingButton
+              label="模糊"
+              hint="2"
+              color="amber"
+              disabled={submitting}
+              onClick={() => handleRate("Hard")}
+            />
+            <RatingButton
+              label="认识"
+              hint="3"
+              color="green"
+              disabled={submitting}
+              onClick={() => handleRate("Good")}
+            />
+            <RatingButton
+              label="Easy"
+              hint="4"
+              color="blue"
+              disabled={submitting}
+              onClick={() => handleRate("Easy")}
+            />
           </div>
         )}
+        <div className="flex items-center justify-between gap-2">
+          <Button
+            type="button"
+            onClick={goPrev}
+            variant="ghost"
+            size="sm"
+            disabled={index === 0 || submitting}
+            className="text-xs text-neutral-500"
+          >
+            ← 上一个
+          </Button>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              onClick={handleMarkMastered}
+              variant="ghost"
+              size="sm"
+              disabled={submitting}
+              className="text-xs text-green-600 hover:text-green-700 dark:text-green-400"
+            >
+              标记已会 (M)
+            </Button>
+            <Button
+              type="button"
+              onClick={skip}
+              variant="ghost"
+              size="sm"
+              disabled={submitting}
+              className="text-xs text-neutral-500"
+            >
+              跳过 (S)
+            </Button>
+          </div>
+        </div>
         <p className="text-center text-xs text-neutral-400">
-          键盘：空格翻面 · ← 上一个 · → 下一个
+          1-4 评分 · M 标记掌握 · S 跳过 · ← 上一个
         </p>
       </div>
     </>
@@ -754,7 +938,7 @@ function CardBack({
   );
 }
 
-type RatingColor = "red" | "amber" | "green";
+type RatingColor = "red" | "amber" | "green" | "blue";
 function RatingButton({
   label,
   hint,
@@ -780,6 +964,7 @@ function RatingButton({
       "border-amber-400 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950",
     green:
       "border-green-400 text-green-600 hover:bg-green-50 dark:hover:bg-green-950",
+    blue: "border-blue-400 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950",
   };
   return (
     <Button
