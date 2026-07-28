@@ -11,6 +11,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "dict:seed": "tsx scripts/seed-sample-dict.ts public",
+    "dict:index": "tsx scripts/build-search-index.ts public",
     "dict:compile": "tsx scripts/compile-dict.ts",
     "books:compile": "tsx scripts/compile-books.ts",
     "content:validate": "tsx scripts/validate-content.ts public",

@@ -102,9 +102,24 @@ describe("classifyAiError — 区分上游 401 vs 本地 500", () => {
     expect(classifyAiError(err)).toBe("upstream-other");
   });
 
-  test("未知错误 → local（本地配置/代码问题）", () => {
+  test("未知错误 → upstream-other（兜底：能进入 catch 说明请求已发起）", () => {
     const err = new Error("some unexpected error");
+    expect(classifyAiError(err)).toBe("upstream-other");
+  });
+
+  test("明确的本地配置错误（Invalid URL）→ local", () => {
+    const err = new Error("Invalid URL: https://[malformed");
     expect(classifyAiError(err)).toBe("local");
+  });
+
+  test("custom 缺 model → local", () => {
+    const err = new Error("custom provider 必须指定 model");
+    expect(classifyAiError(err)).toBe("local");
+  });
+
+  test("模型不存在（model not found）→ upstream-other", () => {
+    const err = new Error("model_not_found: glm-4-xxx does not exist");
+    expect(classifyAiError(err)).toBe("upstream-other");
   });
 
   test("null/undefined → local", () => {
@@ -114,6 +129,6 @@ describe("classifyAiError — 区分上游 401 vs 本地 500", () => {
 
   test("非 Error 对象（字符串）→ 按内容分类", () => {
     expect(classifyAiError("401 Unauthorized")).toBe("upstream-auth");
-    expect(classifyAiError("random string")).toBe("local");
+    expect(classifyAiError("random string")).toBe("upstream-other");
   });
 });

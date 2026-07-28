@@ -98,5 +98,9 @@ export async function listDueCards(now: Date): Promise<WordCard[]> {
     .equals("card:")
     .and((r) => r.dueAt !== undefined && r.dueAt <= nowIso)
     .toArray();
-  return records.map((r) => r.value as WordCard);
+  // 已掌握词（verification === "mastered"）不再进入复习队列，
+  // 即使 30 天回访到期也不打扰（用户已明确表示学会）
+  return records
+    .map((r) => r.value as WordCard)
+    .filter((c) => c.verification !== "mastered");
 }

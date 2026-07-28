@@ -18,7 +18,7 @@
  * - 中断友好：FSRS 模式每次反馈实时落库
  */
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { listDueCards, buildTodayQueue, type TodayQueueItem } from "@/lib/review/today-queue";
 import { getTodayNewWords, advanceCursor, getBookWords, loadBookMeta } from "@/lib/review/book-queue";
 import { submitReview, markWordAsMastered, type ReviewOutcome } from "@/lib/review/review-session";
@@ -32,6 +32,12 @@ import type { WordCard } from "@/lib/review/fsrs-scheduler";
 import { Button } from "@/components/ui/button";
 import { TrophyIcon, VolumeIcon } from "@/components/ui/icons";
 import { usePronunciation } from "@/lib/audio/use-pronunciation";
+import { useSwipe } from "@/lib/review/use-swipe";
+import {
+  loadReviewSession,
+  saveReviewSession,
+  type ReviewSessionCache,
+} from "@/lib/review/review-session-cache";
 
 type Mode = "fsrs" | "drill";
 type Phase = "loading" | "reviewing" | "done" | "no-book" | "error";
@@ -39,11 +45,28 @@ type DrillPhase = "selecting" | "loading" | "running" | "done";
 type DrillOrder = "sequential" | "random";
 
 export default function ReviewPage() {
-  const [mode, setMode] = useState<Mode>("fsrs");
+  // 恢复上次模式（fsrs / drill）：lazy initializer 同步读取，避免 effect 内 setState
+  const [mode, setMode] = useState<Mode>(() => {
+    const cached = loadReviewSession();
+    return cached && (cached.mode === "fsrs" || cached.mode === "drill")
+      ? cached.mode
+      : "fsrs";
+  });
+
+  // 模式切换时持久化（保留另一模式的快照）
+  const handleModeChange = useCallback(
+    (m: Mode) => {
+      setMode(m);
+      const cached = loadReviewSession();
+      saveReviewSession({ ...cached, version: 1, mode: m, savedAt: new Date().toISOString() });
+    },
+    []
+  );
+
   return (
     <div className="mx-auto flex h-[100dvh] w-full max-w-2xl flex-col overflow-hidden px-4 py-4">
       {/* 顶部模式切换 */}
-      <ModeSwitcher mode={mode} onChange={setMode} />
+      <ModeSwitcher mode={mode} onChange={handleModeChange} />
       {mode === "fsrs" ? <FsrsReview /> : <DrillMode />}
     </div>
   );
@@ -103,12 +126,31 @@ function FsrsReview() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
 
-  // 构建今日队列
+  // 构建今日队列（优先从缓存恢复，否则重建）
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setPhase("loading");
       setLoadError(null);
+
+      // 尝试恢复上次 FSRS 会话快照（同一天内有效）
+      const cached = loadReviewSession();
+      const fsrsSnap = cached?.fsrs;
+      if (
+        fsrsSnap &&
+        Array.isArray(fsrsSnap.queue) &&
+        fsrsSnap.queue.length > 0 &&
+        fsrsSnap.index >= 0 &&
+        fsrsSnap.index < fsrsSnap.queue.length
+      ) {
+        setQueue(fsrsSnap.queue);
+        setIndex(fsrsSnap.index);
+        setFlipped(fsrsSnap.flipped);
+        setOutcomes(Array.isArray(fsrsSnap.outcomes) ? fsrsSnap.outcomes : []);
+        setPhase("reviewing");
+        return;
+      }
+
       try {
         const active = await getActiveBook();
         if (cancelled) return;
@@ -144,6 +186,24 @@ function FsrsReview() {
       cancelled = true;
     };
   }, [retryNonce]);
+
+  // reviewing 期间持续保存快照；done 时清除
+  useEffect(() => {
+    if (phase === "reviewing" && queue.length > 0) {
+      const snap: ReviewSessionCache = {
+        version: 1,
+        mode: "fsrs",
+        savedAt: new Date().toISOString(),
+        fsrs: { queue, index, flipped, outcomes },
+      };
+      saveReviewSession(snap);
+    } else if (phase === "done") {
+      const cached = loadReviewSession();
+      if (cached?.fsrs) {
+        saveReviewSession({ ...cached, fsrs: undefined, savedAt: new Date().toISOString() });
+      }
+    }
+  }, [phase, queue, index, flipped, outcomes]);
 
   const currentItem = queue[index];
   const currentWord = currentItem
@@ -212,13 +272,37 @@ function FsrsReview() {
     setFlipped((f) => !f);
   }, [submitting]);
 
-  // 键盘快捷键：空格翻面，1/2/3/4 评分
+  const goPrev = useCallback(() => {
+    if (submitting || index === 0) return;
+    setFlipped(false);
+    setIndex(index - 1);
+  }, [index, submitting]);
+
+  const skip = useCallback(() => {
+    if (submitting) return;
+    setFlipped(false);
+    if (index + 1 >= queue.length) {
+      setPhase("done");
+    } else {
+      setIndex(index + 1);
+    }
+  }, [index, queue.length, submitting]);
+
+  const swipe = useSwipe({ onPrev: goPrev, onNext: skip });
+
+  // 键盘快捷键：空格翻面，1/2/3/4 评分，← 上一个，→ 跳过
   useEffect(() => {
     if (phase !== "reviewing") return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === " " || e.key === "Enter") {
         e.preventDefault();
         flip();
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        goPrev();
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        skip();
       } else if (flipped && !submitting) {
         if (e.key === "1") handleRate("Again");
         else if (e.key === "2") handleRate("Hard");
@@ -228,23 +312,7 @@ function FsrsReview() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [phase, flipped, submitting, flip, handleRate]);
-
-  // 长按"认识"= Easy
-  const easyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const startEasyLongPress = useCallback(() => {
-    if (easyTimerRef.current) clearTimeout(easyTimerRef.current);
-    easyTimerRef.current = setTimeout(() => {
-      handleRate("Easy");
-    }, 500);
-  }, [handleRate]);
-  const cancelEasyLongPress = useCallback(() => {
-    if (easyTimerRef.current) {
-      clearTimeout(easyTimerRef.current);
-      easyTimerRef.current = null;
-    }
-  }, []);
-  useEffect(() => () => cancelEasyLongPress(), [cancelEasyLongPress]);
+  }, [phase, flipped, submitting, flip, handleRate, goPrev, skip]);
 
   if (phase === "loading") {
     return (
@@ -329,6 +397,9 @@ function FsrsReview() {
         type="button"
         onClick={flip}
         disabled={submitting}
+        onTouchStart={swipe.onTouchStart}
+        onTouchMove={swipe.onTouchMove}
+        onTouchEnd={swipe.onTouchEnd}
         aria-label={flipped ? "点击返回正面" : "点击翻面查看释义"}
         variant="ghost"
         className="mt-4 flex max-h-[55vh] min-h-[12rem] flex-1 flex-col items-center justify-center gap-3 overflow-y-auto rounded-2xl border border-neutral-200 bg-white px-5 py-6 text-center shadow-sm dark:border-neutral-800 dark:bg-neutral-950"
@@ -342,7 +413,7 @@ function FsrsReview() {
               </span>
             )}
             <span className="text-xs text-neutral-400">
-              点击 / 空格 翻面
+              点击 / 空格 翻面 · ←/→ 或左右滑切换
             </span>
           </>
         ) : (
@@ -357,7 +428,7 @@ function FsrsReview() {
             翻面后选择掌握程度
           </p>
         ) : (
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-4 gap-1.5">
             <RatingButton
               label="忘记"
               hint="1"
@@ -374,18 +445,22 @@ function FsrsReview() {
             />
             <RatingButton
               label="认识"
-              hint="3 / 长按 Easy"
+              hint="3"
               color="green"
               disabled={submitting}
               onClick={() => handleRate("Good")}
-              onPointerDown={startEasyLongPress}
-              onPointerUp={cancelEasyLongPress}
-              onPointerLeave={cancelEasyLongPress}
+            />
+            <RatingButton
+              label="Easy"
+              hint="4"
+              color="blue"
+              disabled={submitting}
+              onClick={() => handleRate("Easy")}
             />
           </div>
         )}
         <p className="text-center text-xs text-neutral-400">
-          键盘：空格翻面 · 1 忘记 · 2 模糊 · 3 认识 · 4 Easy
+          空格翻面 · 1-4 评分 · ←/→ 或左右滑切换
         </p>
       </div>
     </>
@@ -394,21 +469,69 @@ function FsrsReview() {
 
 /* ───────────────── 刷题模式 ───────────────── */
 function DrillMode() {
-  const [drillPhase, setDrillPhase] = useState<DrillPhase>("selecting");
-  const [order, setOrder] = useState<DrillOrder>("sequential");
-  const [filterMastered, setFilterMastered] = useState(true);
-  const [words, setWords] = useState<string[]>([]);
-  const [wordOffsets, setWordOffsets] = useState<number[]>([]);
-  const [index, setIndex] = useState(0);
-  const [flipped, setFlipped] = useState(false);
+  // 恢复上次刷题快照：lazy initializer 同步读取 localStorage，避免 effect 内 setState
+  const drillSnap = (() => {
+    const cached = loadReviewSession();
+    const s = cached?.drill;
+    if (
+      s &&
+      Array.isArray(s.words) &&
+      s.words.length > 0 &&
+      Array.isArray(s.wordOffsets) &&
+      s.wordOffsets.length === s.words.length &&
+      s.index >= 0 &&
+      s.index < s.words.length
+    ) {
+      return s;
+    }
+    return null;
+  })();
+
+  const [drillPhase, setDrillPhase] = useState<DrillPhase>(drillSnap ? "running" : "selecting");
+  const [order, setOrder] = useState<DrillOrder>(drillSnap?.order ?? "sequential");
+  const [filterMastered, setFilterMastered] = useState(drillSnap?.filterMastered ?? true);
+  const [words, setWords] = useState<string[]>(drillSnap?.words ?? []);
+  const [wordOffsets, setWordOffsets] = useState<number[]>(drillSnap?.wordOffsets ?? []);
+  const [index, setIndex] = useState(drillSnap?.index ?? 0);
+  const [flipped, setFlipped] = useState(drillSnap?.flipped ?? false);
   const [entry, setEntry] = useState<DictEntry | null>(null);
   const [loadedForWord, setLoadedForWord] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadProgress, setLoadProgress] = useState<{ loaded: number; total: number } | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [outcomes, setOutcomes] = useState<ReviewOutcome[]>([]);
-  const [masteredCount, setMasteredCount] = useState(0);
-  const [activeBookId, setActiveBookId] = useState<string | null>(null);
+  const [outcomes, setOutcomes] = useState<ReviewOutcome[]>(
+    Array.isArray(drillSnap?.outcomes) ? drillSnap!.outcomes! : []
+  );
+  const [masteredCount, setMasteredCount] = useState(drillSnap?.masteredCount ?? 0);
+  const [activeBookId, setActiveBookId] = useState<string | null>(drillSnap?.activeBookId ?? null);
+
+  // running 期间持续保存快照；done 时清除
+  useEffect(() => {
+    if (drillPhase === "running" && words.length > 0) {
+      const snap: ReviewSessionCache = {
+        version: 1,
+        mode: "drill",
+        savedAt: new Date().toISOString(),
+        drill: {
+          order,
+          filterMastered,
+          words,
+          wordOffsets,
+          index,
+          flipped,
+          masteredCount,
+          outcomes,
+          activeBookId,
+        },
+      };
+      saveReviewSession(snap);
+    } else if (drillPhase === "done") {
+      const cached = loadReviewSession();
+      if (cached?.drill) {
+        saveReviewSession({ ...cached, drill: undefined, savedAt: new Date().toISOString() });
+      }
+    }
+  }, [drillPhase, order, filterMastered, words, wordOffsets, index, flipped, masteredCount, outcomes, activeBookId]);
 
   // 开始刷题：加载词库全部词条，按需过滤已掌握
   const startDrill = useCallback(
@@ -589,6 +712,8 @@ function DrillMode() {
     }
   }, [index, words.length, submitting]);
 
+  const drillSwipe = useSwipe({ onPrev: goPrev, onNext: skip });
+
   // 键盘：空格翻面，1/2/3/4 评分，← 上一个，s 跳过，m 标记掌握
   useEffect(() => {
     if (drillPhase !== "running") return;
@@ -607,6 +732,9 @@ function DrillMode() {
         if (e.key === "ArrowLeft") {
           e.preventDefault();
           goPrev();
+        } else if (e.key === "ArrowRight") {
+          e.preventDefault();
+          skip();
         }
       }
     };
@@ -762,6 +890,9 @@ function DrillMode() {
         type="button"
         onClick={flip}
         disabled={submitting}
+        onTouchStart={drillSwipe.onTouchStart}
+        onTouchMove={drillSwipe.onTouchMove}
+        onTouchEnd={drillSwipe.onTouchEnd}
         aria-label={flipped ? "点击返回正面" : "点击翻面查看释义"}
         variant="ghost"
         className="mt-4 flex max-h-[55vh] min-h-[12rem] flex-1 flex-col items-center justify-center gap-3 overflow-y-auto rounded-2xl border border-neutral-200 bg-white px-5 py-6 text-center shadow-sm dark:border-neutral-800 dark:bg-neutral-950"
@@ -775,7 +906,7 @@ function DrillMode() {
               </span>
             )}
             <span className="text-xs text-neutral-400">
-              点击 / 空格 翻面
+              点击 / 空格 翻面 · ←/→ 或左右滑切换
             </span>
           </>
         ) : (
@@ -856,7 +987,7 @@ function DrillMode() {
           </div>
         </div>
         <p className="text-center text-xs text-neutral-400">
-          1-4 评分 · M 标记掌握 · S 跳过 · ← 上一个
+          1-4 评分 · M 标记掌握 · S 跳过 · ←/→ 或左右滑切换
         </p>
       </div>
     </>

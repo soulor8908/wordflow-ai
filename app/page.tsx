@@ -12,6 +12,11 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useSearch } from "@/lib/search/use-search";
+import {
+  loadSearchHistory,
+  pushSearchHistory,
+  clearSearchHistory,
+} from "@/lib/search/search-history";
 import { countDueCards } from "@/lib/storage/db";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -36,11 +41,18 @@ export default function HomePage() {
   const [newWordCount, setNewWordCount] = useState<number | null>(null);
   const [activeBookId, setActiveBookId] = useState<string | null>(null);
   const [activeBookName, setActiveBookName] = useState<string | null>(null);
+  const [history, setHistory] = useState<string[]>(() => loadSearchHistory());
 
   // 打开即聚焦
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  // 点击搜索结果：记录历史后跳转
+  const handlePick = (word: string) => {
+    pushSearchHistory(word);
+    setHistory(loadSearchHistory());
+  };
 
   // 今日待复习数量 + 今日新词数 + 当前词库（首屏加载一次）
   useEffect(() => {
@@ -195,6 +207,7 @@ export default function HomePage() {
               <li key={entry.word}>
                 <Link
                   href={`/word/${encodeURIComponent(entry.word)}`}
+                  onClick={() => handlePick(entry.word)}
                   className="flex items-center justify-between px-4 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-900"
                 >
                   <span className="font-mono text-base">{entry.word}</span>
@@ -205,6 +218,37 @@ export default function HomePage() {
               </li>
             ))}
         </ul>
+      )}
+
+      {/* 搜索历史：无查询时展示最近查过的词 */}
+      {!hasQuery && history.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-neutral-400">最近搜索</span>
+            <button
+              type="button"
+              onClick={() => {
+                clearSearchHistory();
+                setHistory([]);
+              }}
+              className="text-xs text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
+            >
+              清空
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {history.map((w) => (
+              <Link
+                key={w}
+                href={`/word/${encodeURIComponent(w)}`}
+                onClick={() => handlePick(w)}
+                className="rounded-full border border-neutral-300 px-3 py-1 text-xs font-mono text-neutral-600 hover:border-blue-400 hover:text-blue-600 dark:border-neutral-700 dark:text-neutral-300"
+              >
+                {w}
+              </Link>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* 首次访问引导：无查询 + 无待复习时展示三步上手 */}

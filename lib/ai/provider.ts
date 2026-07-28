@@ -64,45 +64,115 @@ export function resolveModel(session: AiSessionConfig): string {
 /**
  * 分类 AI 调用错误（纯函数，设计文档 §4.4.6）
  *
- * 区分上游鉴权失败（401）vs 本地错误（500）——
- * 通过正则匹配 error.message 识别上游 401，避免用户误以为本地配置错误。
+ * 区分上游鉴权失败（401）vs 本地错误（配置/代码）vs 上游其他（网络/服务端）。
+ *
+ * 改进点（减少"对了也说本地配置错误"的误报）：
+ * - 同时检查 error.cause / error.status / error.responseBody（AI SDK 错误结构）
+ * - 扩充上游模式：404 / model not found / does not exist / invalid model / no such model
+ * - 默认兜底改为 upstream-other：能进入 catch 说明 provider 已构造、fetch 已发起，
+ *   真正的本地配置错误（Invalid URL / 缺 model）会在构造阶段抛出明确信息，单独识别。
  */
 export function classifyAiError(error: unknown): AiErrorClass {
   if (error == null) return "local";
-  const msg =
-    typeof error === "string"
-      ? error
-      : error instanceof Error
-        ? error.message
-        : String(error);
+
+  // 1. 收集所有可能的文本线索：message + cause + responseBody + data
+  const parts: string[] = [];
+  if (typeof error === "string") {
+    parts.push(error);
+  } else if (error instanceof Error) {
+    parts.push(error.message);
+    const anyErr = error as Error & Record<string, unknown>;
+    if (anyErr.cause) {
+      parts.push(
+        anyErr.cause instanceof Error
+          ? anyErr.cause.message
+          : String(anyErr.cause)
+      );
+    }
+    for (const k of ["responseBody", "data", "response", "body"]) {
+      const v = anyErr[k];
+      if (typeof v === "string") parts.push(v);
+      else if (v && typeof v === "object") {
+        try {
+          parts.push(JSON.stringify(v));
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  } else {
+    parts.push(String(error));
+  }
+  const msg = parts.join(" | ");
   const lower = msg.toLowerCase();
-  // 上游鉴权失败：401 / 403 / Unauthorized / invalid api key
+
+  // 2. 本地配置错误（明确的语法/配置问题，在 fetch 前抛出）
+  if (
+    lower.includes("invalid url") ||
+    lower.includes("invalid base url") ||
+    lower.includes("failed to parse url") ||
+    lower.includes("must specify model") ||
+    lower.includes("custom provider 必须指定 model") ||
+    lower.includes("未知 provider") ||
+    lower.includes("api key is required") ||
+    lower.includes("apikey is required") ||
+    lower.includes("missing api key")
+  ) {
+    return "local";
+  }
+
+  // 3. 上游鉴权失败：401 / 403 / Unauthorized / invalid api key
   if (
     lower.includes("401") ||
     lower.includes("403") ||
     lower.includes("unauthorized") ||
     lower.includes("invalid api key") ||
     lower.includes("invalid_api_key") ||
-    lower.includes("authentication")
+    lower.includes("invalidapikey") ||
+    lower.includes("authentication") ||
+    lower.includes("permission denied") ||
+    lower.includes("forbidden")
   ) {
     return "upstream-auth";
   }
-  // 上游其他错误：网络/服务端（fetch failed / 500 / 429 等）
+
+  // 4. 上游其他错误：网络/服务端/模型不存在
   if (
     lower.includes("fetch failed") ||
     lower.includes("econnrefused") ||
+    lower.includes("enotfound") ||
+    lower.includes("eai_again") ||
     lower.includes("timeout") ||
+    lower.includes("timed out") ||
     lower.includes("500") ||
     lower.includes("502") ||
     lower.includes("503") ||
+    lower.includes("504") ||
     lower.includes("429") ||
     lower.includes("rate limit") ||
-    lower.includes("overloaded")
+    lower.includes("rate_limit") ||
+    lower.includes("overloaded") ||
+    lower.includes("404") ||
+    lower.includes("not found") ||
+    lower.includes("does not exist") ||
+    lower.includes("model_not_found") ||
+    lower.includes("model not found") ||
+    lower.includes("no such model") ||
+    lower.includes("invalid model") ||
+    lower.includes("invalid_model") ||
+    lower.includes("bad request") ||
+    lower.includes("400") ||
+    lower.includes("connection refused") ||
+    lower.includes("network error") ||
+    lower.includes("socket hang up") ||
+    lower.includes("json") // JSON 解析失败通常因为上游返回了非 JSON（如 HTML 错误页）
   ) {
     return "upstream-other";
   }
-  // 其余视为本地错误（配置/代码问题）
-  return "local";
+
+  // 5. 兜底：能进入 catch 说明请求已发起，按上游其他错误处理，
+  //    避免把无法识别的上游错误误判为"本地配置错误"误导用户。
+  return "upstream-other";
 }
 
 /**

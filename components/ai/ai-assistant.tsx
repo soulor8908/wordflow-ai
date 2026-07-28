@@ -43,6 +43,32 @@ interface QuotaSnapshot {
 const STORAGE_KEY = "wordflow:ai-chat-history";
 const CLIENT_ID_KEY = "wordflow:ai-client-id";
 const MAX_HISTORY = 50;
+/** AI 请求超时（ms）：避免上游慢响应导致一直 loading */
+const AI_FETCH_TIMEOUT_MS = 30_000;
+
+/** 带 AbortSignal 超时的 fetch；超时抛出友好错误 */
+function fetchWithTimeout(
+  input: string,
+  init: RequestInit = {}
+): Promise<Response> {
+  const signal =
+    typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
+      ? AbortSignal.timeout(AI_FETCH_TIMEOUT_MS)
+      : undefined;
+  return fetch(input, { ...init, signal });
+}
+
+/** 把超时/网络错误转成中文友好提示 */
+function friendlyAiError(e: unknown): string {
+  if (e instanceof Error) {
+    const name = e.name ?? "";
+    if (name === "TimeoutError" || name === "AbortError") {
+      return `AI 响应超时（${Math.round(AI_FETCH_TIMEOUT_MS / 1000)}s），请检查网络或模型配置后重试`;
+    }
+    return e.message;
+  }
+  return "AI 请求失败";
+}
 
 function loadHistory(): ChatMessage[] {
   if (typeof window === "undefined") return [];
@@ -100,7 +126,9 @@ export default function AiAssistant() {
     clientIdRef.current = getOrCreateClientId();
     Promise.all([
       getAiConfig().catch(() => null),
-      fetch(`/api/ai/chat?clientId=${encodeURIComponent(clientIdRef.current)}`)
+      fetchWithTimeout(
+        `/api/ai/chat?clientId=${encodeURIComponent(clientIdRef.current)}`
+      )
         .then((r) => r.json())
         .catch(() => null),
       // 加载当前词书的每日新词量（用于快捷动作展示）
@@ -229,7 +257,7 @@ export default function AiAssistant() {
         // 免费通道
         payload.clientId = clientIdRef.current;
       }
-      const res = await fetch("/api/ai/chat", {
+      const res = await fetchWithTimeout("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -250,7 +278,7 @@ export default function AiAssistant() {
       setMessages(updated);
       saveHistory(updated);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "AI 请求失败";
+      const msg = friendlyAiError(e);
       setError(msg);
       // 失败时移除用户消息，避免历史污染
       setMessages(messages);
@@ -396,7 +424,7 @@ export default function AiAssistant() {
       } else {
         payload.clientId = clientIdRef.current;
       }
-      const res = await fetch("/api/ai/chat", {
+      const res = await fetchWithTimeout("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -416,7 +444,7 @@ export default function AiAssistant() {
       setMessages(updated);
       saveHistory(updated);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "AI 请求失败";
+      const msg = friendlyAiError(e);
       setError(msg);
       setMessages(messages);
       saveHistory(messages);
@@ -455,10 +483,10 @@ export default function AiAssistant() {
         />
       )}
 
-      {/* 聊天面板 */}
+      {/* 聊天面板（全屏：宽高 100%） */}
       {open && (
         <div
-          className="fixed inset-x-3 bottom-36 z-50 flex max-h-[60vh] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-950 sm:right-4 sm:left-auto sm:w-96"
+          className="fixed inset-0 z-50 flex h-full w-full flex-col overflow-hidden bg-white dark:bg-neutral-950"
           role="dialog"
           aria-modal="true"
           aria-label="AI 助手对话"
