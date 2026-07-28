@@ -40,9 +40,34 @@ function getFreeSession(): AiSessionConfig | null {
   };
 }
 
-/** 检查免费通道是否可用（FREE_AI_API_KEY 或 Cloudflare Workers AI） */
-async function isFreeChannelAvailable(): Promise<boolean> {
-  return getFreeSession() !== null || (await isCloudflareAvailable());
+/**
+ * 诊断免费通道不可用的原因（用于前端给出准确提示，而非误导性的"加载中"）
+ * - "no-channel"：既未配置 FREE_AI_API_KEY，也不在 Cloudflare 运行时
+ * - "cloudflare-unbound"：在 CF 运行时但 AI binding 不可用
+ */
+async function diagnoseFreeChannel(): Promise<{
+  available: boolean;
+  reason?: string;
+}> {
+  if (getFreeSession() !== null) return { available: true };
+  const cfAvail = await isCloudflareAvailable();
+  if (cfAvail) return { available: true };
+  // 区分：是否在 CF 运行时但 AI binding 缺失
+  try {
+    const mod = await import("@opennextjs/cloudflare");
+    const getRequestContext = (
+      mod as unknown as {
+        getRequestContext?: () => { env: Record<string, unknown> };
+      }
+    ).getRequestContext;
+    if (getRequestContext) {
+      const ctx = getRequestContext();
+      if (ctx?.env) return { available: false, reason: "cloudflare-unbound" };
+    }
+  } catch {
+    /* 不在 CF 运行时 */
+  }
+  return { available: false, reason: "no-channel" };
 }
 
 export async function POST(request: NextRequest) {
@@ -177,11 +202,12 @@ export async function GET(request: NextRequest) {
       { status: 400 }
     );
   }
-  const available = await isFreeChannelAvailable();
-  if (!available) {
+  const diag = await diagnoseFreeChannel();
+  if (!diag.available) {
     return NextResponse.json({
       ok: true,
       enabled: false,
+      reason: diag.reason ?? "no-channel",
       quota: { used: 0, total: 0, remaining: 0 },
     });
   }

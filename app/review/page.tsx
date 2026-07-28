@@ -3,17 +3,24 @@
 /**
  * 复习页（设计文档 §3.2 B：留存核心）
  *
- * 全屏卡片流：
+ * 两种学习模式：
+ * 1. FSRS 复习模式（默认）：按算法安排到期卡片 + 每日新词
+ *    - 三按钮：忘记/模糊/认识 → Again/Hard/Good；长按认识 = Easy
+ *    - 评分实时落库，影响后续复习调度
+ * 2. 刷题模式：主动遍历整本词书，不受 FSRS 调度限制
+ *    - 支持顺序 / 随机
+ *    - 翻面后只前进/后退，不评分
+ *    - 随时退出，不影响 FSRS 进度
+ *
+ * 公共特性：
  * - 正面：单词 + 音标 + 自动发音；点击/空格翻面显示释义与例句
- * - 三按钮：忘记(红)/模糊(黄)/认识(绿) → Again/Hard/Good；长按认识 = Easy
- * - 顶部进度条；键盘 1/2/3/4/空格
- * - 中断友好：每次反馈实时落库（本地优先）
- * - 完成：结算页（今日数据 + 返回首页）
+ * - 顶部进度条；键盘快捷键
+ * - 中断友好：FSRS 模式每次反馈实时落库
  */
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { listDueCards, buildTodayQueue, type TodayQueueItem } from "@/lib/review/today-queue";
-import { getTodayNewWords } from "@/lib/review/book-queue";
+import { getTodayNewWords, loadAllBookWords } from "@/lib/review/book-queue";
 import { submitReview, type ReviewOutcome } from "@/lib/review/review-session";
 import { findEntry, type DictEntry } from "@/lib/dict/dict-loader";
 import type { Rating } from "@/lib/review/fsrs-scheduler";
@@ -24,9 +31,65 @@ import { Button } from "@/components/ui/button";
 import { TrophyIcon, VolumeIcon } from "@/components/ui/icons";
 import { usePronunciation } from "@/lib/audio/use-pronunciation";
 
+type Mode = "fsrs" | "drill";
 type Phase = "loading" | "reviewing" | "done" | "no-book" | "error";
+type DrillPhase = "selecting" | "loading" | "running" | "done";
+type DrillOrder = "sequential" | "random";
 
 export default function ReviewPage() {
+  const [mode, setMode] = useState<Mode>("fsrs");
+  return (
+    <div className="mx-auto flex h-[100dvh] w-full max-w-2xl flex-col overflow-hidden px-4 py-4">
+      {/* 顶部模式切换 */}
+      <ModeSwitcher mode={mode} onChange={setMode} />
+      {mode === "fsrs" ? <FsrsReview /> : <DrillMode />}
+    </div>
+  );
+}
+
+/* ───────────────── 模式切换器 ───────────────── */
+function ModeSwitcher({
+  mode,
+  onChange,
+}: {
+  mode: Mode;
+  onChange: (m: Mode) => void;
+}) {
+  return (
+    <div className="mb-3 flex shrink-0 items-center justify-between gap-2">
+      <div className="flex rounded-lg border border-neutral-200 bg-neutral-100 p-0.5 text-xs dark:border-neutral-800 dark:bg-neutral-900">
+        <button
+          type="button"
+          onClick={() => onChange("fsrs")}
+          className={`rounded-md px-3 py-1.5 font-medium transition-colors ${
+            mode === "fsrs"
+              ? "bg-white text-blue-600 shadow-sm dark:bg-neutral-950 dark:text-blue-400"
+              : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+          }`}
+        >
+          今日复习
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange("drill")}
+          className={`rounded-md px-3 py-1.5 font-medium transition-colors ${
+            mode === "drill"
+              ? "bg-white text-blue-600 shadow-sm dark:bg-neutral-950 dark:text-blue-400"
+              : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+          }`}
+        >
+          刷题模式
+        </button>
+      </div>
+      <Link href="/" className="text-xs text-neutral-400 hover:underline">
+        退出
+      </Link>
+    </div>
+  );
+}
+
+/* ───────────────── FSRS 复习模式 ───────────────── */
+function FsrsReview() {
   const [phase, setPhase] = useState<Phase>("loading");
   const [queue, setQueue] = useState<TodayQueueItem[]>([]);
   const [index, setIndex] = useState(0);
@@ -88,7 +151,7 @@ export default function ReviewPage() {
     : null;
   const entryLoading = currentWord !== loadedForWord;
 
-  // 加载当前卡片词典释义（setState 仅在异步回调内，避免 effect 内同步 setState）
+  // 加载当前卡片词典释义
   useEffect(() => {
     if (phase !== "reviewing" || !currentItem) return;
     let cancelled = false;
@@ -116,7 +179,6 @@ export default function ReviewPage() {
       setSubmitting(true);
       try {
         const outcome = await submitReview(currentItem, rating, "standard");
-        // Streak + 学习日志累加（Good/Easy 计为正确，Again/Hard 计为错误）
         const correct = rating === "Good" || rating === "Easy" ? 1 : 0;
         await recordStudy(
           todayLocalDate(),
@@ -126,7 +188,7 @@ export default function ReviewPage() {
             correctCount: correct,
           }
         ).catch(() => {
-          /* Streak 写入失败不阻塞复习主流程（本地优先，下次会补） */
+          /* Streak 写入失败不阻塞复习主流程 */
         });
         const next = [...outcomes, outcome];
         setOutcomes(next);
@@ -184,15 +246,15 @@ export default function ReviewPage() {
 
   if (phase === "loading") {
     return (
-      <main className="mx-auto flex min-h-screen w-full max-w-2xl items-center justify-center px-4">
+      <div className="flex flex-1 items-center justify-center">
         <p className="text-sm text-neutral-400">正在加载今日复习队列…</p>
-      </main>
+      </div>
     );
   }
 
   if (phase === "no-book") {
     return (
-      <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col items-center justify-center gap-4 px-4 py-10 text-center">
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
         <h1 className="text-2xl font-bold">还没有选择词库</h1>
         <p className="text-sm text-neutral-500">
           先选一个词库，系统会按 FSRS 算法为你安排每日新词与复习
@@ -203,7 +265,7 @@ export default function ReviewPage() {
         >
           去选词库
         </Link>
-      </main>
+      </div>
     );
   }
 
@@ -213,7 +275,7 @@ export default function ReviewPage() {
 
   if (phase === "error") {
     return (
-      <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col items-center justify-center gap-4 px-4 py-10 text-center">
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
         <h1 className="text-xl font-bold text-red-500">加载失败</h1>
         <p className="text-sm text-neutral-500">{loadError}</p>
         <div className="flex gap-3">
@@ -231,7 +293,7 @@ export default function ReviewPage() {
             换个词库
           </Link>
         </div>
-      </main>
+      </div>
     );
   }
 
@@ -242,7 +304,7 @@ export default function ReviewPage() {
   const isNew = currentItem!.type === "new";
 
   return (
-    <main className="mx-auto flex h-[100dvh] w-full max-w-2xl flex-col overflow-hidden px-4 py-4">
+    <>
       {/* 进度条 */}
       <div className="flex shrink-0 flex-col gap-1">
         <div className="flex items-center justify-between text-xs text-neutral-500">
@@ -250,9 +312,7 @@ export default function ReviewPage() {
             第 {index + 1} / {total} 张
             {isNew && <span className="ml-2 text-blue-500">新词</span>}
           </span>
-          <Link href="/" className="hover:underline">
-            退出
-          </Link>
+          <span className="text-neutral-400">FSRS 复习</span>
         </div>
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
           <div
@@ -326,8 +386,307 @@ export default function ReviewPage() {
           键盘：空格翻面 · 1 忘记 · 2 模糊 · 3 认识 · 4 Easy
         </p>
       </div>
-    </main>
+    </>
   );
+}
+
+/* ───────────────── 刷题模式 ───────────────── */
+function DrillMode() {
+  const [drillPhase, setDrillPhase] = useState<DrillPhase>("selecting");
+  const [order, setOrder] = useState<DrillOrder>("sequential");
+  const [words, setWords] = useState<string[]>([]);
+  const [index, setIndex] = useState(0);
+  const [flipped, setFlipped] = useState(false);
+  const [entry, setEntry] = useState<DictEntry | null>(null);
+  const [loadedForWord, setLoadedForWord] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadProgress, setLoadProgress] = useState<{ loaded: number; total: number } | null>(null);
+
+  // 开始刷题：加载词库全部词条
+  const startDrill = useCallback(async (selectedOrder: DrillOrder) => {
+    setDrillPhase("loading");
+    setLoadError(null);
+    setLoadProgress({ loaded: 0, total: 0 });
+    try {
+      const active = await getActiveBook();
+      if (!active) {
+        setLoadError("还没有选择词库，请先选词库");
+        setDrillPhase("selecting");
+        return;
+      }
+      const allWords = await loadAllBookWords(active.bookId, (loaded, total) => {
+        setLoadProgress({ loaded, total });
+      });
+      if (allWords.length === 0) {
+        setLoadError("词库为空");
+        setDrillPhase("selecting");
+        return;
+      }
+      const finalWords =
+        selectedOrder === "random" ? shuffle(allWords) : allWords;
+      setOrder(selectedOrder);
+      setWords(finalWords);
+      setIndex(0);
+      setFlipped(false);
+      setDrillPhase("running");
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : "加载词库失败");
+      setDrillPhase("selecting");
+    }
+  }, []);
+
+  const currentWord = words[index] ?? null;
+  const entryLoading = currentWord !== loadedForWord;
+
+  // 加载当前词条释义
+  useEffect(() => {
+    if (drillPhase !== "running" || !currentWord) return;
+    let cancelled = false;
+    findEntry(currentWord)
+      .then((e) => {
+        if (cancelled) return;
+        setEntry(e ?? null);
+        setLoadedForWord(currentWord);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setEntry(null);
+        setLoadedForWord(currentWord);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [index, drillPhase, currentWord]);
+
+  const flip = useCallback(() => {
+    setFlipped((f) => !f);
+  }, []);
+
+  const goNext = useCallback(() => {
+    setFlipped(false);
+    if (index + 1 >= words.length) {
+      setDrillPhase("done");
+    } else {
+      setIndex(index + 1);
+    }
+  }, [index, words.length]);
+
+  const goPrev = useCallback(() => {
+    if (index === 0) return;
+    setFlipped(false);
+    setIndex(index - 1);
+  }, [index]);
+
+  // 键盘：空格翻面，← → 翻页
+  useEffect(() => {
+    if (drillPhase !== "running") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === " " || e.key === "Enter") {
+        e.preventDefault();
+        flip();
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        goNext();
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        goPrev();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [drillPhase, flip, goNext, goPrev]);
+
+  // 选择页
+  if (drillPhase === "selecting") {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-6 text-center">
+        <div>
+          <h1 className="text-2xl font-bold">刷题模式</h1>
+          <p className="mt-2 text-sm text-neutral-500">
+            遍历整本词库，不受 FSRS 调度限制，不影响复习进度
+          </p>
+        </div>
+        {loadError && (
+          <p className="text-sm text-red-500">{loadError}</p>
+        )}
+        <div className="flex w-full max-w-xs flex-col gap-2">
+          <Button
+            type="button"
+            onClick={() => startDrill("sequential")}
+            variant="primary"
+            className="w-full py-3"
+          >
+            顺序刷题
+          </Button>
+          <Button
+            type="button"
+            onClick={() => startDrill("random")}
+            variant="secondary"
+            className="w-full py-3"
+          >
+            随机刷题
+          </Button>
+        </div>
+        <p className="text-xs text-neutral-400">
+          刷题不评分、不落库，随时可退出
+        </p>
+      </div>
+    );
+  }
+
+  // 加载中
+  if (drillPhase === "loading") {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+        <p className="text-sm text-neutral-400">正在加载词库…</p>
+        {loadProgress && loadProgress.total > 0 && (
+          <p className="text-xs text-neutral-500">
+            {loadProgress.loaded} / {loadProgress.total}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  // 完成页
+  if (drillPhase === "done") {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-6 text-center">
+        <h1 className="flex items-center justify-center gap-2 text-3xl font-bold">
+          <TrophyIcon title="完成" className="h-7 w-7 text-amber-500" />
+          <span>刷题完成</span>
+        </h1>
+        <p className="text-sm text-neutral-500">
+          已刷完 {words.length} 个词
+        </p>
+        <div className="flex gap-3">
+          <Button
+            type="button"
+            onClick={() => startDrill(order)}
+            variant="secondary"
+          >
+            再刷一遍
+          </Button>
+          <Button
+            type="button"
+            onClick={() => setDrillPhase("selecting")}
+            variant="primary"
+          >
+            换种方式
+          </Button>
+        </div>
+        <Link
+          href="/"
+          className="text-xs text-neutral-400 hover:underline"
+        >
+          返回首页
+        </Link>
+      </div>
+    );
+  }
+
+  // 刷题进行中
+  const total = words.length;
+  const progress = total > 0 ? ((index) / total) * 100 : 0;
+  const word = currentWord!;
+
+  return (
+    <>
+      {/* 进度条 */}
+      <div className="flex shrink-0 flex-col gap-1">
+        <div className="flex items-center justify-between text-xs text-neutral-500">
+          <span>
+            第 {index + 1} / {total} 词
+          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-neutral-400">
+              {order === "sequential" ? "顺序" : "随机"}
+            </span>
+            <button
+              type="button"
+              onClick={() => setDrillPhase("selecting")}
+              className="text-neutral-400 hover:underline"
+            >
+              退出刷题
+            </button>
+          </div>
+        </div>
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
+          <div
+            className="h-full bg-green-500 transition-all"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </div>
+
+      {/* 卡片 */}
+      <Button
+        type="button"
+        onClick={flip}
+        aria-label={flipped ? "点击返回正面" : "点击翻面查看释义"}
+        variant="ghost"
+        className="mt-4 flex max-h-[55vh] min-h-[12rem] flex-1 flex-col items-center justify-center gap-3 overflow-y-auto rounded-2xl border border-neutral-200 bg-white px-5 py-6 text-center shadow-sm dark:border-neutral-800 dark:bg-neutral-950"
+      >
+        {!flipped ? (
+          <>
+            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">{word}</h1>
+            {!entryLoading && entry?.phonetic && (
+              <span className="font-mono text-base text-neutral-500 sm:text-lg">
+                {entry.phonetic}
+              </span>
+            )}
+            <span className="text-xs text-neutral-400">
+              点击 / 空格 翻面
+            </span>
+          </>
+        ) : (
+          <CardBack word={word} entry={entry} loading={entryLoading} />
+        )}
+      </Button>
+
+      {/* 导航按钮：不评分，只前进/后退 */}
+      <div className="mt-4 flex shrink-0 flex-col gap-2 pb-2">
+        {!flipped ? (
+          <p className="text-center text-xs text-neutral-400">
+            翻面查看释义
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              onClick={goPrev}
+              variant="secondary"
+              disabled={index === 0}
+              className="py-3"
+            >
+              ← 上一个
+            </Button>
+            <Button
+              type="button"
+              onClick={goNext}
+              variant="primary"
+              className="py-3"
+            >
+              {index + 1 >= total ? "完成 →" : "下一个 →"}
+            </Button>
+          </div>
+        )}
+        <p className="text-center text-xs text-neutral-400">
+          键盘：空格翻面 · ← 上一个 · → 下一个
+        </p>
+      </div>
+    </>
+  );
+}
+
+/** Fisher-Yates 洗牌 */
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
 }
 
 function CardBack({

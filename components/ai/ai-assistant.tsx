@@ -69,8 +69,10 @@ export default function AiAssistant() {
   const [config, setConfig] = useState<AiConfig | null>(null);
   const [configChecked, setConfigChecked] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /** 免费通道是否开放（服务端是否配置了 FREE_AI_API_KEY） */
+  /** 免费通道是否开放（服务端是否配置了 FREE_AI_API_KEY 或 CF Workers AI） */
   const [freeEnabled, setFreeEnabled] = useState(false);
+  /** 免费通道不可用的原因（用于显示准确提示，避免误导性的"加载中"） */
+  const [unavailableReason, setUnavailableReason] = useState<string | null>(null);
   /** 免费额度剩余（仅免费通道下有意义） */
   const [quota, setQuota] = useState<QuotaSnapshot | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -92,6 +94,10 @@ export default function AiAssistant() {
       if (q && q.ok) {
         setFreeEnabled(!!q.enabled);
         setQuota(q.quota ?? null);
+        setUnavailableReason(q.enabled ? null : (q.reason ?? "no-channel"));
+      } else {
+        // 接口异常也视为不可用
+        setUnavailableReason("no-channel");
       }
     });
     return () => {
@@ -129,6 +135,7 @@ export default function AiAssistant() {
       if (q?.ok) {
         setFreeEnabled(!!q.enabled);
         setQuota(q.quota ?? null);
+        setUnavailableReason(q.enabled ? null : (q.reason ?? "no-channel"));
       }
     } catch {
       /* 忽略额度查询失败，不阻塞聊天 */
@@ -288,16 +295,24 @@ export default function AiAssistant() {
 
           {/* 消息区 */}
           <div className="flex-1 overflow-y-auto px-3 py-3">
-            {/* 免费通道不可用且未配置 BYOK → 友好提示（不强迫配置） */}
+            {/* 免费通道不可用且未配置 BYOK → 显示明确状态（不再用"加载中"误导） */}
             {!config && !freeEnabled && (
               <div className="flex flex-col items-center gap-3 px-4 py-8 text-center">
                 <ChatIcon title="AI 助手" className="h-8 w-8 text-neutral-400" />
                 <p className="text-sm text-neutral-600 dark:text-neutral-300">
-                  AI 助手加载中…
+                  AI 助手暂不可用
                 </p>
                 <p className="text-xs text-neutral-400">
-                  如果长时间无响应，可在「我的」页配置自己的 API Key
+                  {unavailableReason === "cloudflare-unbound"
+                    ? "Cloudflare Workers AI 未绑定，请在 wrangler.jsonc 配置 ai binding"
+                    : "部署到 Cloudflare 即可免费使用，或在「我的」页配置自己的 API Key"}
                 </p>
+                <Link
+                  href="/me"
+                  className="mt-1 rounded-lg border border-neutral-300 px-3 py-1.5 text-xs text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-900"
+                >
+                  去配置 API Key →
+                </Link>
               </div>
             )}
 

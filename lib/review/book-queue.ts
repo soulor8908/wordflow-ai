@@ -425,3 +425,30 @@ export async function peekTodayNewWordCount(
 
   return dailyNew;
 }
+
+/**
+ * 加载词书全部词条（用于刷题模式）。
+ *
+ * 刷题模式不受 FSRS 调度限制，用户可主动遍历整本词书。
+ * 分批加载避免单次请求过大，每批 500 词。
+ * 不推进 cursor，不影响 FSRS 学习进度。
+ *
+ * @param bookId 词书 ID
+ * @param onProgress 可选进度回调（已加载数 / 总数）
+ * @returns 词书全部词条的 word 字段数组
+ */
+export async function loadAllBookWords(
+  bookId: string,
+  onProgress?: (loaded: number, total: number) => void
+): Promise<string[]> {
+  const meta = await loadBookMeta(bookId);
+  const all: string[] = [];
+  const batchSize = 500;
+  for (let offset = 0; offset < meta.wordCount; offset += batchSize) {
+    const limit = Math.min(batchSize, meta.wordCount - offset);
+    const words = await getBookWords(bookId, offset, limit);
+    all.push(...words.map((w) => w.word));
+    onProgress?.(all.length, meta.wordCount);
+  }
+  return all;
+}

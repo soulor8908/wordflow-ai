@@ -10,6 +10,9 @@
 !.yarn/releases
 !.yarn/versions
 
+# pnpm local store (不应入库，仅本地缓存)
+.pnpm-store/
+
 # testing
 /coverage
 
