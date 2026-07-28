@@ -6,7 +6,13 @@
  * 提供 speaking 状态用于 UI 反馈（按钮高亮）。
  * 用计数器追踪并发调用，避免防抖导致的 premature 状态重置。
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import {
   speak as speakPronunciation,
   cancelSpeech,
@@ -25,12 +31,15 @@ export function usePronunciation(): UsePronunciationResult {
   const [speaking, setSpeaking] = useState(false);
   // SSR 阶段为 false，客户端 mount 后再检测，避免 hydration mismatch
   const [supported, setSupported] = useState(false);
+  const [, startTransition] = useTransition();
   const activeCountRef = useRef(0);
 
-  // 客户端 mount 后检测支持性
+  // 客户端 mount 后检测支持性（用 startTransition 避免同步 setState 触发级联渲染）
   useEffect(() => {
-    setSupported(isPronunciationSupported());
-  }, []);
+    startTransition(() => {
+      setSupported(isPronunciationSupported());
+    });
+  }, [startTransition]);
 
   // 卸载时清理：取消发音
   useEffect(() => {
