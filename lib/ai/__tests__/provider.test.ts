@@ -7,7 +7,7 @@ import {
   type AiSessionConfig,
 } from "@/lib/ai/provider";
 
-describe("getProviderConfig — 四家 Provider 配置", () => {
+describe("getProviderConfig — 五家 Provider 配置", () => {
   test("glm: 国内零梯子可达，baseURL + 默认模型", () => {
     const cfg = getProviderConfig("glm");
     expect(cfg.baseURL).toBe("https://open.bigmodel.cn/api/paas/v4");
@@ -24,6 +24,12 @@ describe("getProviderConfig — 四家 Provider 配置", () => {
     const cfg = getProviderConfig("mimo");
     expect(cfg.baseURL).toBe("https://api.xiaomimimo.com/v1");
     expect(cfg.defaultModel).toBe("mimo-v2-pro");
+  });
+
+  test("agnes: 默认免费通道，兼容 OpenAI 格式", () => {
+    const cfg = getProviderConfig("agnes");
+    expect(cfg.baseURL).toBe("https://apihub.agnes-ai.com/v1");
+    expect(cfg.defaultModel).toBe("agnes-2.0-flash");
   });
 
   test("custom: 用户自定义，baseURL/model 来自 session", () => {
@@ -68,6 +74,18 @@ describe("resolveModel — 从 session 解析实际模型名", () => {
         model: "my-model",
       })
     ).toBe("my-model");
+  });
+
+  test("agnes provider 无 model → 用默认 agnes-2.0-flash", () => {
+    expect(
+      resolveModel({ provider: "agnes", apiKey: "sk-test" })
+    ).toBe("agnes-2.0-flash");
+  });
+
+  test("agnes provider 有 model → 用 session model", () => {
+    expect(
+      resolveModel({ provider: "agnes", apiKey: "sk-test", model: "agnes-2.0" })
+    ).toBe("agnes-2.0");
   });
 });
 

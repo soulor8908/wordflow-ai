@@ -28,11 +28,25 @@ interface ChatRequestBody extends Partial<AiSessionConfig> {
   clientId?: string;
 }
 
-/** 从环境变量构造免费通道的 session（用户自己配的 Key） */
+/**
+ * 从环境变量构造免费通道的 session。
+ *
+ * 默认走 Agnes（agnes-2.0-flash），无需额外配置即开箱可用。
+ * 可通过环境变量覆盖：
+ *   FREE_AI_API_KEY  —— 必填，默认 agnes 的共享 Key
+ *   FREE_AI_PROVIDER —— 可选，默认 "agnes"
+ *   FREE_AI_BASE_URL —— 可选
+ *   FREE_AI_MODEL    —— 可选
+ *
+ * 注意：未配置 FREE_AI_API_KEY 时返回 null，由通道3（Cloudflare Workers AI）
+ * 或 fallback 兜底。要启用 agnes 默认通道，请在部署环境配置：
+ *   FREE_AI_API_KEY=sk-xxx
+ * 或通过 Cloudflare dashboard 设置 secret。
+ */
 function getFreeSession(): AiSessionConfig | null {
   const apiKey = process.env.FREE_AI_API_KEY;
   if (!apiKey) return null;
-  const provider = (process.env.FREE_AI_PROVIDER as AiSessionConfig["provider"]) ?? "glm";
+  const provider = (process.env.FREE_AI_PROVIDER as AiSessionConfig["provider"]) ?? "agnes";
   return {
     provider,
     apiKey,
@@ -105,15 +119,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, text: result.text });
     } catch (err) {
       const errorClass = classifyAiError(err);
+      // 提取原始错误信息供用户排查（如 SSL 握手失败、DNS 解析失败等）
+      const rawError =
+        err instanceof Error
+          ? err.message
+          : typeof err === "string"
+            ? err
+            : JSON.stringify(err);
       const message =
         errorClass === "upstream-auth"
           ? "API Key 无效或权限不足，请检查 Key 和 Provider 配置"
           : errorClass === "upstream-other"
-            ? "上游服务暂时不可用，请稍后重试"
-            : "本地配置错误，请检查 baseURL 和 model";
+            ? `上游服务暂时不可用，请稍后重试（${rawError.slice(0, 120)}）`
+            : `本地配置错误，请检查 baseURL 和 model（${rawError.slice(0, 120)}）`;
       const status = errorClass === "upstream-auth" ? 401 : 500;
       return NextResponse.json(
-        { ok: false, error: errorClass, message },
+        {
+          ok: false,
+          error: errorClass,
+          message,
+          rawError: rawError.slice(0, 200),
+        },
         { status }
       );
     }

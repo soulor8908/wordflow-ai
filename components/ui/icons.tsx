@@ -94,6 +94,17 @@ export function CloseIcon(props: IconProps) {
   );
 }
 
+/** 菜单（三横线，用于展开会话列表） */
+export function MenuIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <line x1="3" y1="18" x2="21" y2="18" />
+    </Base>
+  );
+}
+
 /** API Key（钥匙） */
 export function KeyIcon(props: IconProps) {
   return (

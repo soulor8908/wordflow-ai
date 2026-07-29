@@ -51,15 +51,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, message: "连接成功" });
   } catch (err) {
     const errorClass = classifyAiError(err);
+    // 提取原始错误信息供用户排查
+    const rawError =
+      err instanceof Error
+        ? err.message
+        : typeof err === "string"
+          ? err
+          : JSON.stringify(err);
     const message =
       errorClass === "upstream-auth"
         ? "API Key 无效或权限不足，请检查 Key 和 Provider 配置"
         : errorClass === "upstream-other"
-          ? "上游服务暂时不可用，请稍后重试"
-          : "本地配置错误，请检查 baseURL 和 model";
+          ? `上游服务暂时不可用（${rawError.slice(0, 120)}）`
+          : `本地配置错误，请检查 baseURL 和 model（${rawError.slice(0, 120)}）`;
     const status = errorClass === "upstream-auth" ? 401 : 500;
     return NextResponse.json(
-      { ok: false, error: errorClass, message },
+      {
+        ok: false,
+        error: errorClass,
+        message,
+        rawError: rawError.slice(0, 200),
+      },
       { status }
     );
   }

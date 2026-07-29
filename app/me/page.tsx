@@ -275,14 +275,14 @@ function AiConfigSection({
 }) {
   const [editing, setEditing] = useState(!config);
   const [provider, setProvider] = useState<ProviderName>(
-    config?.provider ?? "glm"
+    config?.provider ?? "agnes"
   );
   const [apiKey, setApiKey] = useState(config?.apiKey ?? "");
   const [baseURL, setBaseURL] = useState(
-    config?.baseURL ?? PROVIDER_CONFIGS.glm.baseURL
+    config?.baseURL ?? PROVIDER_CONFIGS.agnes.baseURL
   );
   const [model, setModel] = useState(
-    config?.model ?? PROVIDER_CONFIGS.glm.defaultModel
+    config?.model ?? PROVIDER_CONFIGS.agnes.defaultModel
   );
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -353,9 +353,9 @@ function AiConfigSection({
     await clearAiConfig();
     onSaved();
     setApiKey("");
-    setProvider("glm");
-    setBaseURL(PROVIDER_CONFIGS.glm.baseURL);
-    setModel(PROVIDER_CONFIGS.glm.defaultModel);
+    setProvider("agnes");
+    setBaseURL(PROVIDER_CONFIGS.agnes.baseURL);
+    setModel(PROVIDER_CONFIGS.agnes.defaultModel);
     setEditing(true);
     setTestResult(null);
   }
@@ -408,8 +408,8 @@ function AiConfigSection({
             <label className="mb-1 block text-xs text-neutral-500">
               AI 服务商
             </label>
-            <div className="grid grid-cols-4 gap-2">
-              {(["glm", "deepseek", "mimo", "custom"] as ProviderName[]).map(
+            <div className="grid grid-cols-5 gap-2">
+              {(["agnes", "glm", "deepseek", "mimo", "custom"] as ProviderName[]).map(
                 (p) => (
                   <Button
                     key={p}
@@ -419,13 +419,15 @@ function AiConfigSection({
                     onClick={() => handleProviderChange(p)}
                     className="text-xs"
                   >
-                    {p === "glm"
-                      ? "智谱GLM"
-                      : p === "deepseek"
-                        ? "DeepSeek"
-                        : p === "mimo"
-                          ? "小米MiMo"
-                          : "自定义"}
+                    {p === "agnes"
+                      ? "Agnes"
+                      : p === "glm"
+                        ? "智谱GLM"
+                        : p === "deepseek"
+                          ? "DeepSeek"
+                          : p === "mimo"
+                            ? "小米MiMo"
+                            : "自定义"}
                   </Button>
                 )
               )}

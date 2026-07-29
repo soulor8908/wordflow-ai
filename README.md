@@ -75,9 +75,20 @@ pnpm preview
 
 首次部署 Wrangler 会询问是否创建新的 Worker，确认即可。部署成功后会得到 `https://wordflow-ai.<你的子域>.workers.dev` 地址。
 
-### 4. 绑定自定义域名（可选）
+> **⚠️ 国内访问说明**：`workers.dev` 默认域名在国内可能无法直接访问。
+> 这是因为 Cloudflare Workers 的默认域名走的是境外节点。解决方案是**绑定自定义域名**（见下方第 4 步），
+> 自定义域名可走 Cloudflare 中国节点或 CN2 线路，国内可正常访问。
+>
+> **为什么不迁移到 Pages（pages.dev）？**
+> 本项目使用了 Cloudflare Workers AI binding（`wrangler.jsonc` 的 `ai` 配置），
+> 而 Cloudflare Pages 不支持 Workers AI binding，也无法支持 `@opennextjs/cloudflare` 的 Worker 模式部署。
+> 因此必须保持 Workers 部署，通过自定义域名解决国内访问问题。
 
-在 Cloudflare Dashboard → Workers & Pages → `wordflow-ai` → Settings → Triggers → Custom Domains 中添加自己的域名。Cloudflare 会自动配置 DNS 和 SSL。
+### 4. 绑定自定义域名（必需，解决国内访问）
+
+在 Cloudflare Dashboard → Workers & Pages → `wordflow-ai` → Settings → Domains & Routes → Add Custom Domain 中添加自己的域名。Cloudflare 会自动配置 DNS 和 SSL。
+
+绑定后，国内用户通过自定义域名访问会走优化线路，可正常使用。
 
 ## AI 通道配置（可选）
 

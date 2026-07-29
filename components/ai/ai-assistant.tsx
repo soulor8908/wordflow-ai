@@ -25,14 +25,19 @@ import {
   loadBookMeta,
   todayLocalDate,
 } from "@/lib/review/book-queue";
+import {
+  listSessions,
+  getSessionMessages,
+  createSession,
+  appendMessages,
+  setSessionMessages,
+  deleteSession,
+  type ChatMessage,
+  type SessionMeta,
+} from "@/lib/ai/chat-sessions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ChatIcon, CloseIcon } from "@/components/ui/icons";
-
-interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
-}
+import { ChatIcon, CloseIcon, MenuIcon } from "@/components/ui/icons";
 
 interface QuotaSnapshot {
   used: number;
@@ -40,9 +45,7 @@ interface QuotaSnapshot {
   remaining: number;
 }
 
-const STORAGE_KEY = "wordflow:ai-chat-history";
 const CLIENT_ID_KEY = "wordflow:ai-client-id";
-const MAX_HISTORY = 50;
 /** AI 请求超时（ms）：避免上游慢响应导致一直 loading */
 const AI_FETCH_TIMEOUT_MS = 30_000;
 
@@ -70,22 +73,6 @@ function friendlyAiError(e: unknown): string {
   return "AI 请求失败";
 }
 
-function loadHistory(): ChatMessage[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as ChatMessage[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveHistory(msgs: ChatMessage[]): void {
-  if (typeof window === "undefined") return;
-  const trimmed = msgs.slice(-MAX_HISTORY);
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
-}
-
 /** 读取或生成稳定的客户端匿名 ID（用于免费额度限流） */
 function getOrCreateClientId(): string {
   if (typeof window === "undefined") return "";
@@ -99,7 +86,13 @@ function getOrCreateClientId(): string {
 
 export default function AiAssistant() {
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>(() => loadHistory());
+  /** 当前会话 id（首次打开时自动创建一个新会话） */
+  const [sessionId, setSessionId] = useState<string>("");
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  /** 会话列表（侧边抽屉展示，按 updatedAt 降序） */
+  const [sessions, setSessions] = useState<SessionMeta[]>([]);
+  /** 是否展示会话列表抽屉 */
+  const [showSessions, setShowSessions] = useState(false);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [config, setConfig] = useState<AiConfig | null>(null);
@@ -119,6 +112,41 @@ export default function AiAssistant() {
   const [settingDailyNew, setSettingDailyNew] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const clientIdRef = useRef<string>("");
+
+  /** 刷新会话列表 */
+  const refreshSessions = useCallback(() => {
+    setSessions(listSessions());
+  }, []);
+
+  /** 切换到指定会话 */
+  function switchSession(id: string) {
+    setSessionId(id);
+    setMessages(getSessionMessages(id));
+    setShowSessions(false);
+    setError(null);
+  }
+
+  /** 新建会话 */
+  function handleNewSession() {
+    const id = createSession();
+    refreshSessions();
+    switchSession(id);
+  }
+
+  /** 删除会话 */
+  function handleDeleteSession(id: string) {
+    deleteSession(id);
+    refreshSessions();
+    // 若删除的是当前会话，切到第一个或新建
+    if (id === sessionId) {
+      const remaining = listSessions();
+      if (remaining.length > 0) {
+        switchSession(remaining[0].id);
+      } else {
+        handleNewSession();
+      }
+    }
+  }
 
   // 加载配置 + 查询免费额度
   useEffect(() => {
@@ -162,6 +190,26 @@ export default function AiAssistant() {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, open]);
+
+  // 打开面板前初始化当前会话（加载已有或新建）
+  // 放在事件处理中而非 effect，避免 effect 内同步 setState 触发级联渲染
+  function initSessionIfNeeded() {
+    refreshSessions();
+    if (!sessionId) {
+      const list = listSessions();
+      if (list.length > 0) {
+        switchSession(list[0].id);
+      } else {
+        handleNewSession();
+      }
+    }
+  }
+  // 用 ref 让 ask-ai 监听器始终调用最新版本，避免 [] 依赖导致 sessionId 闭包过期
+  // ref 必须在 effect 中更新（render 阶段写 ref 会被 react-hooks/refs 规则拦截）
+  const initRef = useRef(initSessionIfNeeded);
+  useEffect(() => {
+    initRef.current = initSessionIfNeeded;
+  });
 
   // 监听 storage 事件，跨标签同步 AI 配置
   useEffect(() => {
@@ -216,6 +264,7 @@ export default function AiAssistant() {
     const onAskAi = (e: Event) => {
       const detail = (e as CustomEvent<{ prompt?: string }>).detail;
       if (!detail?.prompt) return;
+      initRef.current();
       setOpen(true);
       setInput(detail.prompt);
     };
@@ -235,12 +284,11 @@ export default function AiAssistant() {
       return;
     }
 
-    const nextMessages: ChatMessage[] = [
-      ...messages,
-      { role: "user", content: text },
-    ];
+    const userMsg: ChatMessage = { role: "user", content: text };
+    const nextMessages: ChatMessage[] = [...messages, userMsg];
     setMessages(nextMessages);
-    saveHistory(nextMessages);
+    appendMessages(sessionId, [userMsg]);
+    refreshSessions();
     setInput("");
     setSending(true);
     setError(null);
@@ -271,18 +319,18 @@ export default function AiAssistant() {
         }
         throw new Error(data.message || "AI 请求失败");
       }
-      const updated: ChatMessage[] = [
-        ...nextMessages,
-        { role: "assistant", content: data.text },
-      ];
+      const aiMsg: ChatMessage = { role: "assistant", content: data.text };
+      const updated: ChatMessage[] = [...nextMessages, aiMsg];
       setMessages(updated);
-      saveHistory(updated);
+      appendMessages(sessionId, [aiMsg]);
+      refreshSessions();
     } catch (e) {
       const msg = friendlyAiError(e);
       setError(msg);
       // 失败时移除用户消息，避免历史污染
       setMessages(messages);
-      saveHistory(messages);
+      setSessionMessages(sessionId, messages);
+      refreshSessions();
     } finally {
       setSending(false);
     }
@@ -290,7 +338,8 @@ export default function AiAssistant() {
 
   function handleClearHistory() {
     setMessages([]);
-    saveHistory([]);
+    setSessionMessages(sessionId, []);
+    refreshSessions();
   }
 
   /**
@@ -348,12 +397,11 @@ export default function AiAssistant() {
       }
       const prompt = lines.join("\n");
 
-      const nextMessages: ChatMessage[] = [
-        ...messages,
-        { role: "user", content: prompt },
-      ];
+      const userMsg: ChatMessage = { role: "user", content: prompt };
+      const nextMessages: ChatMessage[] = [...messages, userMsg];
       setMessages(nextMessages);
-      saveHistory(nextMessages);
+      appendMessages(sessionId, [userMsg]);
+      refreshSessions();
       await sendToAi(nextMessages);
     } catch (e) {
       setError(e instanceof Error ? e.message : "整理周报失败");
@@ -397,7 +445,8 @@ export default function AiAssistant() {
       };
       const next = [...messages, sysMsg];
       setMessages(next);
-      saveHistory(next);
+      appendMessages(sessionId, [sysMsg]);
+      refreshSessions();
       setDailyNewInput("");
       setSettingDailyNew(false);
     } catch (e) {
@@ -442,12 +491,15 @@ export default function AiAssistant() {
         { role: "assistant", content: data.text },
       ];
       setMessages(updated);
-      saveHistory(updated);
+      const aiMsg: ChatMessage = { role: "assistant", content: data.text };
+      appendMessages(sessionId, [aiMsg]);
+      refreshSessions();
     } catch (e) {
       const msg = friendlyAiError(e);
       setError(msg);
       setMessages(messages);
-      saveHistory(messages);
+      setSessionMessages(sessionId, messages);
+      refreshSessions();
     } finally {
       setSending(false);
     }
@@ -462,7 +514,14 @@ export default function AiAssistant() {
       <Button
         type="button"
         variant="primary"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          if (open) {
+            setOpen(false);
+            return;
+          }
+          initSessionIfNeeded();
+          setOpen(true);
+        }}
         aria-label={open ? "关闭 AI 助手" : "打开 AI 助手"}
         aria-expanded={open}
         className="fixed bottom-20 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full !px-0 shadow-lg transition-transform hover:scale-105 active:scale-95"
@@ -494,10 +553,20 @@ export default function AiAssistant() {
           {/* 头部 */}
           <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-2.5 dark:border-neutral-900">
             <div className="flex items-center gap-2">
-              <ChatIcon
-                title="AI 助手"
-                className="h-4 w-4 text-blue-600 dark:text-blue-400"
-              />
+              {/* 会话列表按钮：点击展开侧边抽屉查看历史会话 */}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  refreshSessions();
+                  setShowSessions(true);
+                }}
+                aria-label="历史会话"
+                className="!px-1.5 !py-0 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
+              >
+                <MenuIcon title="历史会话" className="h-4 w-4" />
+              </Button>
               <span className="text-sm font-medium">AI 助手</span>
               {config ? (
                 <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] text-green-700 dark:bg-green-950 dark:text-green-300">
@@ -517,6 +586,16 @@ export default function AiAssistant() {
               ) : null}
             </div>
             <div className="flex items-center gap-2">
+              {/* 新建会话 */}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleNewSession}
+                className="!px-1.5 !py-0 text-[11px] text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
+              >
+                + 新对话
+              </Button>
               {messages.length > 0 && (
                 <Button
                   type="button"
@@ -549,6 +628,91 @@ export default function AiAssistant() {
               </Button>
             </div>
           </div>
+
+          {/* 会话列表抽屉（从左侧滑入，查看历史聊天记录） */}
+          {showSessions && (
+            <div
+              className="absolute inset-0 z-50 flex"
+              role="dialog"
+              aria-modal="true"
+              aria-label="历史会话"
+            >
+              {/* 遮罩 */}
+              <div
+                className="flex-1 bg-black/30"
+                onClick={() => setShowSessions(false)}
+              />
+              {/* 抽屉面板 */}
+              <div className="flex w-72 max-w-[80%] flex-col bg-white dark:bg-neutral-950">
+                <div className="flex items-center justify-between border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-900">
+                  <span className="text-sm font-medium">历史会话</span>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={handleNewSession}
+                      className="!px-2 !py-0.5 text-[11px]"
+                    >
+                      + 新建
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowSessions(false)}
+                      aria-label="关闭"
+                      className="!px-1.5 !py-0"
+                    >
+                      <CloseIcon title="关闭" className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                  {sessions.length === 0 ? (
+                    <p className="px-3 py-6 text-center text-xs text-neutral-400">
+                      还没有历史会话
+                    </p>
+                  ) : (
+                    <ul className="flex flex-col">
+                      {sessions.map((s) => (
+                        <li key={s.id}>
+                          <div
+                            className={`group flex items-center justify-between gap-2 px-3 py-2.5 text-sm hover:bg-neutral-50 dark:hover:bg-neutral-900 ${
+                              s.id === sessionId
+                                ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
+                                : ""
+                            }`}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => switchSession(s.id)}
+                              className="flex-1 truncate text-left"
+                            >
+                              <p className="truncate">{s.title}</p>
+                              <p className="mt-0.5 text-[10px] text-neutral-400">
+                                {new Date(s.updatedAt).toLocaleString("zh-CN")}
+                                {" · "}
+                                {s.messageCount} 条
+                              </p>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSession(s.id)}
+                              aria-label="删除会话"
+                              className="shrink-0 text-neutral-300 opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* 顶部提示条：未配置自己的 API Key 时引导添加（点击隐藏聊天框进入配置页） */}
           {!config && (

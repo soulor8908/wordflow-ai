@@ -1,7 +1,7 @@
 /**
  * AI Provider 抽象（设计文档 §4.4.1）
  *
- * 通过 Vercel AI SDK createOpenAI() 统一封装 GLM / DeepSeek / MiMo / custom 四家
+ * 通过 Vercel AI SDK createOpenAI() 统一封装 GLM / DeepSeek / MiMo / Agnes / custom 五家
  * （均兼容 OpenAI 格式）。getModelFromSession 从 session 上下文取已解密 apiKey 调用。
  *
  * Provider 配置 + 模型解析 + 错误分类为纯函数（可测试）；
@@ -9,7 +9,7 @@
  */
 import { createOpenAI } from "@ai-sdk/openai";
 
-export type ProviderName = "glm" | "deepseek" | "mimo" | "custom";
+export type ProviderName = "glm" | "deepseek" | "mimo" | "agnes" | "custom";
 
 export interface ProviderConfig {
   baseURL: string;
@@ -37,6 +37,11 @@ export const PROVIDER_CONFIGS: Record<ProviderName, ProviderConfig> = {
   mimo: {
     baseURL: "https://api.xiaomimimo.com/v1",
     defaultModel: "mimo-v2-pro",
+  },
+  agnes: {
+    // Agnes AI（兼容 OpenAI 格式），作为默认免费通道 provider
+    baseURL: "https://apihub.agnes-ai.com/v1",
+    defaultModel: "agnes-2.0-flash",
   },
   custom: {
     baseURL: "", // 由 session 提供
