@@ -3,6 +3,8 @@ import { generateText } from "ai";
 import {
   createAiProvider,
   classifyAiError,
+  validateBaseUrl,
+  getProviderConfig,
   type AiSessionConfig,
 } from "@/lib/ai/provider";
 import { buildSystemPrompt } from "@/lib/ai/prompts";
@@ -78,6 +80,11 @@ export async function POST(request: NextRequest) {
   if (provider && apiKey) {
     const session: AiSessionConfig = { provider, apiKey, baseURL, model };
     try {
+      // SSRF 防护：校验 baseURL（仅对 custom provider 和用户覆盖的 baseURL 生效）
+      const cfg = getProviderConfig(provider);
+      const finalBaseURL = baseURL || cfg.baseURL;
+      if (finalBaseURL) validateBaseUrl(finalBaseURL);
+
       const { model: aiModel } = createAiProvider(session);
       const systemPrompt = buildSystemPrompt("word_explain_chat");
       const result = await generateText({

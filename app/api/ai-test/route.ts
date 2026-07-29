@@ -16,6 +16,7 @@ import {
   getProviderConfig,
   resolveModel,
   classifyAiError,
+  validateBaseUrl,
   type AiSessionConfig,
 } from "@/lib/ai/provider";
 
@@ -80,6 +81,22 @@ export async function POST(request: NextRequest) {
         rawError: "empty baseURL",
       },
       { status: 500 }
+    );
+  }
+
+  // SSRF 防护：校验 baseURL 不指向内网/私有地址
+  try {
+    validateBaseUrl(finalBaseURL);
+  } catch (err) {
+    const rawError = err instanceof Error ? err.message : String(err);
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "local",
+        message: `API 地址不安全：${rawError}`,
+        rawError,
+      },
+      { status: 400 }
     );
   }
 

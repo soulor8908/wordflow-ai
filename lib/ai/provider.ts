@@ -196,3 +196,58 @@ export function createAiProvider(session: AiSessionConfig) {
 
   return { model: openai(model), provider: openai };
 }
+
+/**
+ * SSRF 防护：校验 baseURL 不指向内网/私有地址。
+ *
+ * 阻止的地址：
+ * - 非 http/https 协议（file://、ftp:// 等）
+ * - localhost / 127.0.0.1 / 0.0.0.0 / ::1
+ * - 私有 IP 段：10.x / 172.16-31.x / 192.168.x
+ * - 链路本地：169.254.x（AWS/Cloudflare metadata endpoint）
+ * - .local / .internal 域名
+ *
+ * 内置 provider（glm/deepseek/mimo/agnes）的 baseURL 已硬编码为公网 HTTPS，
+ * 此校验仅对 custom provider 和用户覆盖的 baseURL 生效。
+ */
+export function validateBaseUrl(url: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error(`Invalid URL: ${url}`);
+  }
+
+  // 仅允许 http/https
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(`不允许的协议: ${parsed.protocol}（仅支持 http/https）`);
+  }
+
+  const host = parsed.hostname.toLowerCase();
+
+  // 阻止 localhost
+  if (host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0" || host === "::1" || host === "[::1]") {
+    throw new Error(`不允许的地址: ${host}（禁止访问本地地址）`);
+  }
+
+  // 阻止 .local / .internal 域名
+  if (host.endsWith(".local") || host.endsWith(".internal")) {
+    throw new Error(`不允许的域名: ${host}（禁止访问内网域名）`);
+  }
+
+  // 阻止私有 IP 段和链路本地地址
+  const ipv4Match = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4Match) {
+    const [, a, b] = ipv4Match.map(Number) as unknown as [number, number, number, number, number];
+    // 10.x.x.x
+    if (a === 10) throw new Error(`不允许的地址: ${host}（私有 IP 段）`);
+    // 172.16-31.x.x
+    if (a === 172 && b >= 16 && b <= 31) throw new Error(`不允许的地址: ${host}（私有 IP 段）`);
+    // 192.168.x.x
+    if (a === 192 && b === 168) throw new Error(`不允许的地址: ${host}（私有 IP 段）`);
+    // 169.254.x.x（链路本地 / cloud metadata）
+    if (a === 169 && b === 254) throw new Error(`不允许的地址: ${host}（链路本地地址）`);
+    // 0.x.x.x
+    if (a === 0) throw new Error(`不允许的地址: ${host}（保留地址）`);
+  }
+}
