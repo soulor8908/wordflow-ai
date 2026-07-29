@@ -41,7 +41,14 @@ wrangler pages deploy .open-next --project-name wordflow-ai --branch main
 
 **现象**：页面能打开但 CSS/JS/词库文件 404
 **原因**：`_routes.json` 未排除静态资源路径，所有请求都被 `_worker.js` 处理
-**解决**：创建 `_routes.json`，exclude 掉 `_next/static/*`、`dict/*`、`books/*`、`icons/*` 等
+**解决**：创建 `_routes.json`，exclude 掉 `_next/static/*`、`dict/*`、`book-data/*`、`icons/*` 等
+
+### 8. ❌ 页面路由 404（静态目录与路由同名冲突）
+
+**现象**：`/books` 页面返回 404，但 `/review`、`/me` 等其他路由正常；`/books/cet4-core/index.json` 静态资源却能访问
+**原因**：`public/books/` 静态目录与 `app/books/page.tsx` 页面路由同名。Cloudflare Pages 优先把 `/books` 当静态资源匹配，但它是目录不是文件，返回 404，不 fallback 到 Worker
+**解决**：重命名静态目录避免冲突——`public/books/` → `public/book-data/`，同步改代码引用（lib/content/book-index.ts、lib/review/book-queue.ts）和 `_routes.json` 的 exclude 规则
+**关键文件**：[lib/content/book-index.ts](file:///workspace/lib/content/book-index.ts)、[lib/review/book-queue.ts](file:///workspace/lib/review/book-queue.ts)
 
 ### 5. ❌ AI 聊天返回 fallback 文案（非真实 AI）
 

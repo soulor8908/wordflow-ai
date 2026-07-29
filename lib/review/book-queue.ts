@@ -145,7 +145,7 @@ export async function loadBookMeta(bookId: string): Promise<BookMeta> {
   if (bookMetaCache.has(bookId)) return bookMetaCache.get(bookId)!;
 
   // 1. 尝试切片化格式：books/{id}/index.json
-  const slicedRes = await fetch(`/books/${bookId}/index.json`, {
+  const slicedRes = await fetch(`/book-data/${bookId}/index.json`, {
     cache: "force-cache",
   });
   if (slicedRes.ok) {
@@ -169,7 +169,7 @@ export async function loadBookMeta(bookId: string): Promise<BookMeta> {
   }
 
   // 2. 回退扁平格式：books/{id}.json（兼容旧词书）
-  const flatRes = await fetch(`/books/${bookId}.json`, { cache: "force-cache" });
+  const flatRes = await fetch(`/book-data/${bookId}.json`, { cache: "force-cache" });
   if (!flatRes.ok) throw new Error(`词书不存在: ${bookId}`);
   const raw = await flatRes.json();
   const parsed = wordBookSchema.safeParse(raw);
@@ -198,7 +198,7 @@ async function loadChunk(
   const cacheKey = `${bookId}:${chunkFile}`;
   if (chunkCache.has(cacheKey)) return chunkCache.get(cacheKey)!;
 
-  const res = await fetch(`/books/${bookId}/${chunkFile}`, {
+  const res = await fetch(`/book-data/${bookId}/${chunkFile}`, {
     cache: "force-cache",
   });
   if (!res.ok) throw new Error(`切片加载失败: ${bookId}/${chunkFile}`);
@@ -246,7 +246,7 @@ export async function getBookWords(
 export async function loadBook(bookId: string): Promise<WordBook> {
   const meta = await loadBookMeta(bookId);
   if (!meta.sliced) {
-    const flatRes = await fetch(`/books/${bookId}.json`, {
+    const flatRes = await fetch(`/book-data/${bookId}.json`, {
       cache: "force-cache",
     });
     if (!flatRes.ok) throw new Error(`词书不存在: ${bookId}`);

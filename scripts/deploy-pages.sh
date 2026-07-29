@@ -74,7 +74,7 @@ cat > .open-next/_routes.json <<'ROUTES'
   "exclude": [
     "/_next/static/*",
     "/_next/image/*",
-    "/books/*",
+    "/book-data/*",
     "/dict/*",
     "/icons/*",
     "/favicon.ico",
@@ -132,6 +132,22 @@ if [ "$DICT_STATUS" = "200" ]; then
 else
   echo "  ✗ 词库不可访问（HTTP $DICT_STATUS）"
   VERIFY_OK=false
+fi
+
+# ── 步骤 7：前端 UI 自动化验证（关键！必须通过才能报告成功） ──
+echo ""
+echo "▸ 运行前端 UI 自动化验证（Playwright）..."
+if command -v python3 >/dev/null 2>&1 && python3 -c "import playwright" 2>/dev/null; then
+  if python3 scripts/verify-deploy.py "${DEPLOY_URL}"; then
+    echo "  ✓ UI 验证通过"
+  else
+    echo "  ✗ UI 验证失败——禁止报告部署成功，请查看上方失败项和截图"
+    echo "    截图：tmp-verify-home.png / tmp-verify-chat.png"
+    VERIFY_OK=false
+  fi
+else
+  echo "  ⚠ playwright 未安装，跳过 UI 验证（仅完成 API 级验证）"
+  echo "    安装后可运行：pip install playwright && playwright install chromium && python3 scripts/verify-deploy.py"
 fi
 
 echo ""

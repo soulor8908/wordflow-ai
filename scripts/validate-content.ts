@@ -1,7 +1,7 @@
 /**
  * 内容校验脚本（设计文档 §8.2 quality-gate: content:validate 步骤）
  *
- * 校验 public/books/ 词书：
+ * 校验 public/book-data/ 词书：
  * 1. zod schema 校验（wordBookSchema / slicedBookIndexSchema）
  * 2. G1-G7 图谱规则校验（audit-rules）
  *
@@ -153,14 +153,14 @@ function collectSlicedBookWords(bookDir: string): Set<string> {
 }
 
 export function validateContent(publicDir: string): ValidateContentResult {
-  const booksDir = join(publicDir, "books");
+  const booksDir = join(publicDir, "book-data");
   const dictDir = join(publicDir, "dict");
   const errors: string[] = [];
   let total = 0;
   let passed = 0;
 
   if (!existsSync(booksDir)) {
-    return { total: 0, passed: 0, errors: ["books 目录不存在"] };
+    return { total: 0, passed: 0, errors: ["book-data 目录不存在"] };
   }
 
   const dictWords = collectDictWords(dictDir);

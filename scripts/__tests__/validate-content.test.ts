@@ -13,7 +13,7 @@ const TMP = join(tmpdir(), `wf-content-test-${Date.now()}`);
 
 function setupFixture(): string {
   rmSync(TMP, { recursive: true, force: true });
-  mkdirSync(join(TMP, "books"), { recursive: true });
+  mkdirSync(join(TMP, "book-data"), { recursive: true });
   mkdirSync(join(TMP, "dict", "a"), { recursive: true });
   const book: WordBook = {
     id: "test-book",
@@ -30,7 +30,7 @@ function setupFixture(): string {
     ],
   };
   writeFileSync(
-    join(TMP, "books", "test-book.json"),
+    join(TMP, "book-data", "test-book.json"),
     JSON.stringify(book),
     "utf8"
   );
@@ -143,7 +143,7 @@ describe("validateContent", () => {
       words: [{ word: "nonexistent-xyz", translation: "x" }],
     };
     writeFileSync(
-      join(dir, "books", "bad.json"),
+      join(dir, "book-data", "bad.json"),
       JSON.stringify(book),
       "utf8"
     );

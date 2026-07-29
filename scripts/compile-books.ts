@@ -3,7 +3,7 @@
  * 词书编译脚本（设计文档 §4.2：compile-books.ts）
  *
  * 输入：词书 YAML（zod schema 校验，见 lib/content/word-book-schema.ts）
- * 输出：public/books/{id}.json
+ * 输出：public/book-data/{id}.json
  *
  * 用法：
  *   tsx scripts/compile-books.ts <book.yaml> [output-dir]
@@ -58,8 +58,8 @@ async function main(): Promise<void> {
       process.exit(1);
     }
     const book: WordBook = result.data;
-    const outPath = join(outDir, "books", `${book.id}.json`);
-    mkdirSync(join(outDir, "books"), { recursive: true });
+    const outPath = join(outDir, "book-data", `${book.id}.json`);
+    mkdirSync(join(outDir, "book-data"), { recursive: true });
     writeFileSync(outPath, JSON.stringify(book), "utf8");
     console.log(`[compile-books] ${inputPath} → ${outPath} (${book.words.length} 词)`);
     total++;

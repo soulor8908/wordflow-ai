@@ -76,7 +76,7 @@ export const BOOK_COLOR_CLASSES: Record<
 
 /** 加载官方词书索引 */
 export async function loadBookIndex(): Promise<BookMeta[]> {
-  const res = await fetch("/books/index.json", { cache: "force-cache" });
+  const res = await fetch("/book-data/index.json", { cache: "force-cache" });
   if (!res.ok) throw new Error("加载词书索引失败");
   const data = await res.json();
   const parsed = bookIndexSchema.safeParse(data);
