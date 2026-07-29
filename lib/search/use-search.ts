@@ -3,23 +3,30 @@
 /**
  * 查词 hook（设计文档 §3.2：输入即搜 debounce 80ms，前缀补全 + 模糊纠错兜底）
  *
- * 启动时加载 /search-index.json 构建前缀索引；输入时 debounce 80ms 后查询。
- * effect 内的 setState 全部走 startTransition / setTimeout 回调，避免同步级联渲染。
+ * 性能优化：
+ * - 索引 fetch/parse/buildPrefixIndex/search 全部在 Web Worker 完成
+ *  （lib/search/search-worker.ts），主线程不再被 42k 词条阻塞
+ * - 索引延迟到 requestIdleCallback 后才加载（懒加载），不抢占首屏 LCP 的
+ *   网络与主线程
+ * - 查询走 postMessage，过时结果按 id 丢弃
  *
- * loading 语义修正：
- * - 仅在 debounce 等待中或 index 未就绪时为 true
+ * loading 语义：
+ * - 仅在 debounce 等待中或索引未就绪时为 true
  * - 搜索完成但 0 结果时 loading = false，由 UI 显示"无匹配"
- * （旧实现把 0 结果当作"还在搜索"，导致永远显示"搜索中…"）
  */
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import {
-  buildPrefixIndex,
-  search,
-  type PrefixIndex,
-  type SearchEntry,
-} from "@/lib/search/search-engine";
+import type { SearchEntry } from "@/lib/search/search-engine";
 
 const DEBOUNCE_MS = 80;
+
+type Req =
+  | { type: "init" }
+  | { type: "search"; id: number; query: string; limit: number };
+
+type Res =
+  | { type: "ready" }
+  | { type: "error" }
+  | { type: "results"; id: number; query: string; results: SearchEntry[] };
 
 export interface UseSearchResult {
   query: string;
@@ -37,30 +44,45 @@ export function useSearch(limit = 8): UseSearchResult {
   /** 标记本次 query 是否已搜完（区分"还在搜"与"搜完 0 结果"） */
   const [searched, setSearched] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const indexRef = useRef<PrefixIndex | null>(null);
-  const entriesRef = useRef<SearchEntry[]>([]);
+  const workerRef = useRef<Worker | null>(null);
+  const reqIdRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 启动时加载前缀索引
+  // 创建 worker；索引加载延迟到 idle（不抢占首屏 LCP）
   useEffect(() => {
-    let cancelled = false;
-    fetch("/search-index.json", { cache: "force-cache" })
-      .then((res) => (res.ok ? res.json() : []))
-      .then((entries: SearchEntry[]) => {
-        if (cancelled) return;
-        entriesRef.current = entries;
-        indexRef.current = buildPrefixIndex(entries);
+    if (typeof Worker === "undefined") return; // SSR / 不支持 Worker
+    const worker = new Worker(new URL("./search-worker.ts", import.meta.url));
+    workerRef.current = worker;
+
+    worker.onmessage = (e: MessageEvent<Res>) => {
+      const msg = e.data;
+      if (msg.type === "ready") {
         startTransition(() => setIndexReady(true));
-      })
-      .catch(() => {
-        if (!cancelled) startTransition(() => setIndexReady(true));
-      });
+      } else if (msg.type === "results") {
+        if (msg.id !== reqIdRef.current) return; // 过时结果丢弃
+        startTransition(() => {
+          setResults(msg.results);
+          setSearched(true);
+        });
+      }
+    };
+
+    // 懒加载：idle 后再让 worker 拉取索引，避免抢占 LCP 网络与主线程
+    const init = () => worker.postMessage({ type: "init" } satisfies Req);
+    const useRIC = "requestIdleCallback" in window;
+    const handle = useRIC
+      ? window.requestIdleCallback(init, { timeout: 2000 })
+      : window.setTimeout(init, 1500);
+
     return () => {
-      cancelled = true;
+      worker.terminate();
+      workerRef.current = null;
+      if (useRIC) window.cancelIdleCallback(handle);
+      else window.clearTimeout(handle);
     };
   }, []);
 
-  // debounce 查询：所有 setState 走 setTimeout 回调（异步），避免 effect 内同步 setState
+  // debounce 查询：发到 worker（所有 setState 走 transition，避免同步级联渲染）
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
     const q = query.trim();
@@ -75,12 +97,13 @@ export function useSearch(limit = 8): UseSearchResult {
         if (timerRef.current) clearTimeout(timerRef.current);
       };
     }
+    const worker = workerRef.current;
     timerRef.current = setTimeout(() => {
-      const index = indexRef.current;
-      startTransition(() => {
-        setResults(index ? search(index, entriesRef.current, q, limit) : []);
-        setSearched(true);
-      });
+      // 索引未就绪不发：loading 由 !indexReady 兜住，ready 后 effect 重跑自动补搜
+      if (!worker || !indexReady) return;
+      const id = ++reqIdRef.current;
+      startTransition(() => setSearched(false)); // 标记本次查询进行中
+      worker.postMessage({ type: "search", id, query: q, limit } satisfies Req);
     }, DEBOUNCE_MS);
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
