@@ -1,6 +1,17 @@
 {
   "books": [
     {
+      "id": "mom-core",
+      "name": "宝妈亲子英语",
+      "description": "覆盖幼儿园到小学阶段的亲子英语词汇，帮助宝妈应对孩子提问",
+      "level": "亲子",
+      "wordCount": 207,
+      "dailyNew": 10,
+      "color": "amber",
+      "sliced": true,
+      "chunkCount": 2
+    },
+    {
       "id": "cet4-core",
       "name": "CET-4 大学英语四级核心词",
       "description": "大学英语四级大纲词汇，覆盖听读写译高频词（教育部大纲 4615 词）",

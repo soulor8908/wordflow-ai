@@ -1,0 +1,24 @@
+{
+  "id": "mom-core",
+  "name": "宝妈亲子英语",
+  "description": "覆盖幼儿园到小学阶段的亲子英语词汇，帮助宝妈应对孩子提问",
+  "dailyNew": 10,
+  "sources": [
+    {
+      "level": "T0",
+      "name": "人教版小学英语"
+    },
+    {
+      "level": "T1",
+      "name": "幼儿园常用词"
+    }
+  ],
+  "sliced": true,
+  "wordCount": 207,
+  "chunkSize": 100,
+  "chunkCount": 2,
+  "chunks": [
+    "chunk-000.json",
+    "chunk-001.json"
+  ]
+}
