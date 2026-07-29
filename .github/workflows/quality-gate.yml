@@ -88,9 +88,32 @@ jobs:
         env:
           NEXT_TELEMETRY_DISABLED: "1"
 
-      - name: Deploy to Cloudflare Workers
+      - name: Prepare Pages deployment
+        run: |
+          cp .open-next/worker.js .open-next/_worker.js
+          cp -r .open-next/assets/* .open-next/
+          cat > .open-next/_routes.json <<'ROUTES'
+          {
+            "version": 1,
+            "include": ["/*"],
+            "exclude": [
+              "/_next/static/*",
+              "/_next/image/*",
+              "/book-data/*",
+              "/dict/*",
+              "/icons/*",
+              "/favicon.ico",
+              "/favicon.svg",
+              "/manifest.json",
+              "/sw.js",
+              "/search-index.json"
+            ]
+          }
+          ROUTES
+
+      - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy
+          command: pages deploy .open-next --project-name wordflow-ai --commit-dirty=true
