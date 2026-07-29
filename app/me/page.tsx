@@ -863,8 +863,16 @@ function DictStatusSection() {
   }
 
   // 首次挂载：执行检查（prevEntryCount 已在 useState 初始化时读取）
+  // 延迟到微任务执行，避免在 effect 同步阶段调用 setState（react-hooks/set-state-in-effect）
   useEffect(() => {
-    checkDict(false);
+    let cancelled = false;
+    (async () => {
+      await Promise.resolve();
+      if (!cancelled) await checkDict(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const hasUpdate =
