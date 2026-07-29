@@ -93,16 +93,16 @@ with sync_playwright() as p:
         sys.exit(1)
 
     # 4. 输入并发送消息，等待 AI 回复
-    #    assistant 消息渲染为 justify-start + bg-neutral-100 气泡（见 ai-assistant.tsx）
-    #    sending 时显示 ●●● 动画，结束后 assistant 气泡出现
+    #    用精确 aria-label 定位主对话面板（避免多 dialog 干扰）
+    #    状态机：等 sending 动画出现 → 等 sending 消失 → 取最后一条 assistant 消息
     try:
         input_el = page.locator('input[aria-label="AI 助手输入框"]')
         if input_el.count() == 0:
             input_el = page.locator('textarea[aria-label="AI 助手输入框"]')
         step("输入框存在", input_el.count() > 0, f"找到 {input_el.count()} 个")
 
-        # 发送前统计 assistant 气泡数量（justify-start 的消息行）
-        dialog = page.locator('[role="dialog"]').first
+        # 精确定位主对话面板（aria-label="AI 助手对话"）
+        dialog = page.locator('[role="dialog"][aria-label="AI 助手对话"]')
         assistant_bubbles_before = dialog.locator('div.justify-start').count()
 
         input_el.first.fill("hello")
@@ -113,18 +113,26 @@ with sync_playwright() as p:
 
         if send_btn.count() > 0:
             send_btn.first.click()
-            # 等待 AI 回复（上游 agnes 响应约 15s，给 45 秒）
+            # 状态机等待：sending 动画 = span.animate-pulse（●●●）
             start = time.time()
             reply = None
-            for _ in range(45):
+            sending_pulse = dialog.locator('span.animate-pulse')
+            phase = "wait_sending"  # 先确认请求发出（动画出现）
+            for _ in range(70):  # 最多 70s
                 page.wait_for_timeout(1000)
-                # assistant 气泡数量增加 = 收到回复
-                now_count = dialog.locator('div.justify-start').count()
-                if now_count > assistant_bubbles_before:
-                    last = dialog.locator('div.justify-start').last
-                    txt = last.inner_text().strip()
-                    if txt:
-                        reply = txt
+                pulse_count = sending_pulse.count()
+                if phase == "wait_sending":
+                    if pulse_count > 0:
+                        phase = "wait_reply"  # 请求已发出，等回复
+                elif phase == "wait_reply":
+                    # sending 动画消失 = 回复到达或出错
+                    if pulse_count == 0:
+                        bubbles = dialog.locator('div.justify-start')
+                        if bubbles.count() > assistant_bubbles_before:
+                            last_text = bubbles.last.inner_text().strip()
+                            # 排除 sending 残留（含 ●）和用户消息
+                            if last_text and "●" not in last_text and last_text.lower() != "hello":
+                                reply = last_text
                         break
             elapsed = time.time() - start
             step("AI 回复收到", reply is not None, f"耗时 {elapsed:.1f}s，回复：{(reply or '无')[:60]}")
