@@ -24,8 +24,8 @@ export interface PronunciationOptions {
 const DEFAULT_RATE = 0.9;
 const DEFAULT_PITCH = 1.0;
 const DEBOUNCE_MS = 300; // 缩短到 300ms，避免用户快速点击无反馈
-const YOUDAO_TYPE = 2; // 美音（type=1 英音、type=2 美音）
 const TTS_TIMEOUT_MS = 5000; // TTS 兜底超时（单词很短，5s 足够）
+const AUDIO_LOAD_TIMEOUT_MS = 8000; // 音频加载超时（移动端慢网络保护）
 const SILENCE_WAV =
   "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
 
@@ -66,16 +66,27 @@ export function isPronunciationSupported(): boolean {
   return isSpeechSupported() || isAudioSupported();
 }
 
-// --- 有道词典音频 ---
+// --- TTS 音频源 ---
 
+/**
+ * 构建 TTS 代理 URL（同源，解决移动端跨域 + 网络不稳定）。
+ * 代理路由服务端 fallback：Youdao → Google Translate TTS。
+ */
+function buildTtsProxyUrl(word: string): string {
+  return `/api/tts/${encodeURIComponent(word)}`;
+}
+
+/** 兼容：保留旧函数名但指向代理 URL */
 function buildYoudaoUrl(word: string): string {
-  return `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word)}&type=${YOUDAO_TYPE}`;
+  return buildTtsProxyUrl(word);
 }
 
 /**
- * 用有道词典音频发音。
+ * 用 TTS 代理音频发音。
  * 关键：audio.play() 在 Promise 执行器内同步触发，保持在用户手势栈内。
  * 返回 Promise<boolean>：true 表示播放完成，false 表示失败。
+ *
+ * 超时保护：如果 8s 内未开始播放（移动端慢网络），视为失败。
  */
 export function speakWithAudio(word: string): Promise<boolean> {
   return new Promise((resolve) => {
@@ -96,16 +107,35 @@ export function speakWithAudio(word: string): Promise<boolean> {
       currentAudio = null;
     }
 
+    let settled = false;
+    // 加载超时：移动端慢网络下 8s 未播放则放弃
+    const loadTimer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      if (currentAudio === audio) {
+        try { audio.pause(); } catch { /* ignore */ }
+        currentAudio = null;
+      }
+      resolve(false);
+    }, AUDIO_LOAD_TIMEOUT_MS);
+
+    let audio: HTMLAudioElement;
     try {
-      const audio = new Audio(buildYoudaoUrl(word));
+      audio = new Audio(buildTtsProxyUrl(word));
       audio.preload = "auto";
       currentAudio = audio;
 
       audio.onended = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(loadTimer);
         if (currentAudio === audio) currentAudio = null;
         resolve(true);
       };
       audio.onerror = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(loadTimer);
         if (currentAudio === audio) currentAudio = null;
         resolve(false);
       };
@@ -113,11 +143,18 @@ export function speakWithAudio(word: string): Promise<boolean> {
       const p = audio.play();
       if (p && typeof p.catch === "function") {
         p.catch(() => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(loadTimer);
           if (currentAudio === audio) currentAudio = null;
           resolve(false);
         });
       }
     } catch {
+      if (!settled) {
+        settled = true;
+        clearTimeout(loadTimer);
+      }
       currentAudio = null;
       resolve(false);
     }

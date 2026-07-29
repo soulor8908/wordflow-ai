@@ -56,6 +56,9 @@ import {
   TrashIcon,
   PlusIcon,
   ChevronRightIcon,
+  CopyIcon,
+  CheckIcon,
+  RefreshIcon,
 } from "@/components/ui/icons";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -475,10 +478,14 @@ export default function AiAssistant() {
           throw new Error(data.message || "AI 请求失败");
         }
         if (data.fallback) {
-          setError("AI 通道暂不可用，请配置 API Key 后重试");
-          setMessages(messages);
-          setSessionMessages(sessionId, messages);
+          // fallback：AI 通道不可用，但仍展示兜底引导文案（不丢用户消息）
+          const aiMsg: ChatMessage = { role: "assistant", content: data.text };
+          const updated: ChatMessage[] = [...nextMessages, aiMsg];
+          setMessages(updated);
+          appendMessages(sessionId, [aiMsg]);
           refreshSessions();
+          // 同时展示提示（不阻塞对话流）
+          setError("AI 通道暂不可用，以下为离线引导回复。配置 API Key 后可获得完整 AI 对话");
         } else {
           const aiMsg: ChatMessage = { role: "assistant", content: data.text };
           const updated: ChatMessage[] = [...nextMessages, aiMsg];
@@ -561,6 +568,174 @@ export default function AiAssistant() {
   function handleClearHistory() {
     setMessages([]);
     setSessionMessages(sessionId, []);
+    refreshSessions();
+  }
+
+  // ── 消息操作：复制 / 刷新 / 删除 ──
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+
+  /** 复制单条消息内容到剪贴板 */
+  async function handleCopyMessage(idx: number) {
+    const msg = messages[idx];
+    if (!msg) return;
+    try {
+      await navigator.clipboard.writeText(msg.content);
+      setCopiedIdx(idx);
+      setTimeout(() => setCopiedIdx(null), 1500);
+    } catch {
+      // clipboard API 不可用时降级
+      const ta = document.createElement("textarea");
+      ta.value = msg.content;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); } catch { /* ignore */ }
+      document.body.removeChild(ta);
+      setCopiedIdx(idx);
+      setTimeout(() => setCopiedIdx(null), 1500);
+    }
+  }
+
+  /** 刷新：重新发送最后一条用户消息 */
+  async function handleRefreshLast() {
+    if (sending) return;
+    // 找到最后一条用户消息
+    const lastUserIdx = [...messages].reverse().findIndex((m) => m.role === "user");
+    if (lastUserIdx === -1) return;
+    const realIdx = messages.length - 1 - lastUserIdx;
+    const lastUserMsg = messages[realIdx];
+    // 移除该用户消息之后的所有消息（包括对应的 AI 回复）
+    const trimmed = messages.slice(0, realIdx);
+    setMessages(trimmed);
+    setSessionMessages(sessionId, trimmed);
+    refreshSessions();
+    // 将用户消息重新填入输入框并发送
+    setInput(lastUserMsg.content);
+    // 下一帧触发发送（确保 input state 已更新）
+    setTimeout(() => {
+      handleSendWithText(lastUserMsg.content, trimmed);
+    }, 0);
+  }
+
+  /** 用指定文本发送（供刷新功能复用） */
+  async function handleSendWithText(text: string, baseMessages: ChatMessage[]) {
+    if (!text.trim() || sending) return;
+    const userMsg: ChatMessage = { role: "user", content: text.trim() };
+    const nextMessages: ChatMessage[] = [...baseMessages, userMsg];
+    setMessages(nextMessages);
+    appendMessages(sessionId, [userMsg]);
+    refreshSessions();
+    setInput("");
+    setShowQuickInputs(false);
+    setSending(true);
+    setError(null);
+
+    let fullText = "";
+    try {
+      const payload: Record<string, unknown> = { messages: nextMessages };
+      if (config) {
+        payload.provider = config.provider;
+        payload.apiKey = config.apiKey;
+        payload.baseURL = config.baseURL;
+        payload.model = config.model;
+      } else {
+        payload.clientId = clientIdRef.current;
+      }
+      const res = await fetchWithTimeout("/api/ai/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const contentType = res.headers.get("content-type") ?? "";
+      if (contentType.includes("application/json")) {
+        const data = await res.json();
+        if (data.quota) setQuota(data.quota);
+        if (!data.ok) {
+          if (data.error === "quota-exhausted") {
+            setQuota(data.quota ?? null);
+          }
+          throw new Error(data.message || "AI 请求失败");
+        }
+        if (data.fallback) {
+          const aiMsg: ChatMessage = { role: "assistant", content: data.text };
+          const updated: ChatMessage[] = [...nextMessages, aiMsg];
+          setMessages(updated);
+          appendMessages(sessionId, [aiMsg]);
+          refreshSessions();
+          setError("AI 通道暂不可用，以下为离线引导回复。配置 API Key 后可获得完整 AI 对话");
+        } else {
+          const aiMsg: ChatMessage = { role: "assistant", content: data.text };
+          const updated: ChatMessage[] = [...nextMessages, aiMsg];
+          setMessages(updated);
+          appendMessages(sessionId, [aiMsg]);
+          refreshSessions();
+        }
+      } else {
+        if (!res.body) throw new Error("AI 返回了空响应");
+        let currentMessages: ChatMessage[] = [
+          ...nextMessages,
+          { role: "assistant", content: "" },
+        ];
+        setMessages(currentMessages);
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            try {
+              const parsed = JSON.parse(trimmed);
+              if (parsed.type === "meta" && parsed.quota) {
+                setQuota(parsed.quota);
+              } else if (parsed.type === "delta" && parsed.content) {
+                fullText += parsed.content;
+                currentMessages = [
+                  ...currentMessages.slice(0, -1),
+                  { role: "assistant", content: fullText },
+                ];
+                setMessages(currentMessages);
+              } else if (parsed.type === "error") {
+                throw new Error(parsed.message || "AI 流式响应出错");
+              }
+            } catch (e) {
+              if (e instanceof Error && e.message.includes("流式")) throw e;
+            }
+          }
+        }
+        if (fullText) {
+          appendMessages(sessionId, [{ role: "assistant", content: fullText }]);
+          refreshSessions();
+        }
+      }
+    } catch (e) {
+      const msg = friendlyAiError(e);
+      setError(msg);
+      if (!fullText) {
+        setMessages(nextMessages.slice(0, -1));
+        setSessionMessages(sessionId, nextMessages.slice(0, -1));
+      } else {
+        appendMessages(sessionId, [{ role: "assistant", content: fullText }]);
+        refreshSessions();
+      }
+      refreshSessions();
+    } finally {
+      setSending(false);
+    }
+  }
+
+  /** 删除单条消息 */
+  function handleDeleteMessage(idx: number) {
+    const next = messages.filter((_, i) => i !== idx);
+    setMessages(next);
+    setSessionMessages(sessionId, next);
     refreshSessions();
   }
 
@@ -998,8 +1173,8 @@ export default function AiAssistant() {
             {messages.map((m, i) => (
               <div
                 key={i}
-                className={`mb-2 flex ${
-                  m.role === "user" ? "justify-end" : "justify-start"
+                className={`mb-2 flex flex-col ${
+                  m.role === "user" ? "items-end" : "items-start"
                 }`}
               >
                 <div
@@ -1019,6 +1194,54 @@ export default function AiAssistant() {
                     <span className="whitespace-pre-wrap">{m.content}</span>
                   )}
                 </div>
+                {/* 消息操作栏：复制 / 刷新 / 删除 */}
+                {m.role === "assistant" && m.content && (
+                  <div className="mt-0.5 flex items-center gap-1 px-1">
+                    <Button
+                      type="button"
+                      variant="plain"
+                      onClick={() => handleCopyMessage(i)}
+                      aria-label="复制"
+                      className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] !text-neutral-400 hover:!bg-neutral-100 hover:!text-neutral-600 dark:hover:!bg-neutral-800 dark:hover:!text-neutral-300"
+                    >
+                      {copiedIdx === i ? (
+                        <>
+                          <CheckIcon className="h-3 w-3 text-green-500" />
+                          <span className="text-green-500">已复制</span>
+                        </>
+                      ) : (
+                        <>
+                          <CopyIcon className="h-3 w-3" />
+                          <span>复制</span>
+                        </>
+                      )}
+                    </Button>
+                    {/* 刷新：仅最后一条 assistant 消息显示 */}
+                    {i === messages.length - 1 && (
+                      <Button
+                        type="button"
+                        variant="plain"
+                        onClick={handleRefreshLast}
+                        disabled={sending}
+                        aria-label="重新生成"
+                        className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] !text-neutral-400 hover:!bg-neutral-100 hover:!text-neutral-600 disabled:opacity-40 dark:hover:!bg-neutral-800 dark:hover:!text-neutral-300"
+                      >
+                        <RefreshIcon className="h-3 w-3" />
+                        <span>刷新</span>
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      variant="plain"
+                      onClick={() => handleDeleteMessage(i)}
+                      aria-label="删除"
+                      className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] !text-neutral-400 hover:!bg-neutral-100 hover:!text-red-500 dark:hover:!bg-neutral-800"
+                    >
+                      <TrashIcon className="h-3 w-3" />
+                      <span>删除</span>
+                    </Button>
+                  </div>
+                )}
               </div>
             ))}
 
@@ -1186,15 +1409,14 @@ export default function AiAssistant() {
           {/* 输入区 */}
           {canChat && (
             <div className="border-t border-neutral-100 px-4 py-3 dark:border-neutral-900">
-              <div className="flex items-end gap-2">
+              <div className="flex items-center gap-2">
                 {/* 快捷输入图标 */}
                 <Button
                   type="button"
                   variant="ghost"
-                  size="sm"
                   onClick={() => setShowQuickInputs(!showQuickInputs)}
                   aria-label="快捷输入"
-                  className="shrink-0 !px-2 !py-2"
+                  className="shrink-0 h-11 w-11 !p-0"
                 >
                   <BoltIcon
                     title="快捷输入"
@@ -1216,15 +1438,14 @@ export default function AiAssistant() {
                       : "免费体验中…（Enter 发送）"
                   }
                   disabled={sending}
-                  className="flex-1"
+                  className="flex-1 !py-2.5"
                   aria-label="AI 助手输入框"
                 />
                 <Button
                   type="button"
                   onClick={handleSend}
                   disabled={sending || !input.trim()}
-                  size="sm"
-                  className="shrink-0"
+                  className="shrink-0 h-11 !px-4"
                 >
                   发送
                 </Button>

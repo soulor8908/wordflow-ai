@@ -14,7 +14,8 @@
  */
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
-import { findEntry, type DictEntry } from "@/lib/dict/dict-loader";
+import type { DictEntry } from "@/lib/dict/dict-loader";
+import { findEntryWithUserLib } from "@/lib/dict/user-words";
 import {
   favoriteWord,
   isFavorited,
@@ -44,7 +45,7 @@ export default function WordPage({
 
   useEffect(() => {
     let cancelled = false;
-    findEntry(word)
+    findEntryWithUserLib(word)
       .then((e) => {
         if (!cancelled) setEntry(e ?? null);
       })

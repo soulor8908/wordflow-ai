@@ -18,6 +18,8 @@ import {
   pushSearchHistory,
   clearSearchHistory,
 } from "@/lib/search/search-history";
+import { aiLookupWord } from "@/lib/dict/ai-lookup";
+import type { DictEntry } from "@/lib/dict/dict-loader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -52,6 +54,12 @@ export default function HomePage() {
   const [activeBookId, setActiveBookId] = useState<string | null>(null);
   const [activeBookName, setActiveBookName] = useState<string | null>(null);
   const [history, setHistory] = useState<string[]>(() => loadSearchHistory());
+
+  // AI 搜索状态：内置词典无结果时自动调用 AI
+  const [aiSearching, setAiSearching] = useState(false);
+  const [aiEntry, setAiEntry] = useState<DictEntry | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const aiQueryRef = useRef<string>("");
 
   // 打开即聚焦
   useEffect(() => {
@@ -111,6 +119,54 @@ export default function HomePage() {
       .catch(() => setActiveBookName(null));
   }, [activeBookId]);
 
+  // AI 搜索：内置词典无结果时自动调用（debounce 等搜索稳定后触发）
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (!trimmed || trimmed.length < 2 || !indexReady) {
+      setAiEntry(null);
+      setAiError(null);
+      setAiSearching(false);
+      aiQueryRef.current = "";
+      return;
+    }
+
+    // 内置词典有结果 → 清除 AI 状态
+    if (results.length > 0 || loading) {
+      setAiEntry(null);
+      setAiError(null);
+      setAiSearching(false);
+      aiQueryRef.current = "";
+      return;
+    }
+
+    // 内置词典无结果 + 搜索完成 → 触发 AI 搜索
+    // 防抖：等 500ms 确认用户停止输入
+    const timer = setTimeout(() => {
+      // 避免重复查询同一词
+      if (aiQueryRef.current === trimmed) return;
+      aiQueryRef.current = trimmed;
+      setAiSearching(true);
+      setAiEntry(null);
+      setAiError(null);
+
+      aiLookupWord(trimmed)
+        .then((result) => {
+          setAiSearching(false);
+          if (result.ok && result.entry) {
+            setAiEntry(result.entry);
+          } else {
+            setAiError(result.error || "AI 搜索失败");
+          }
+        })
+        .catch(() => {
+          setAiSearching(false);
+          setAiError("AI 搜索网络错误");
+        });
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [query, results.length, loading, indexReady]);
+
   const hasQuery = query.trim().length > 0;
   // 清除按钮直接从 query 派生，避免 effect 内 setState
   const showClear = query.length > 0;
@@ -144,6 +200,30 @@ export default function HomePage() {
           <span className="text-xs text-neutral-400">切换 <ChevronRightIcon className="h-4 w-4 inline" /></span>
         </Link>
       )}
+
+      {/* 词库入口：我的词库 + 全量词库 */}
+      <div className="flex gap-2">
+        <Link
+          href="/my-words"
+          className="flex flex-1 items-center justify-between rounded-lg border border-neutral-200 px-3 py-2 text-xs text-neutral-600 hover:bg-neutral-50 dark:border-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-900"
+        >
+          <span className="flex items-center gap-1.5">
+            <BookIcon title="我的词库" className="h-3.5 w-3.5 text-blue-500" />
+            我的词库
+          </span>
+          <ChevronRightIcon className="h-3.5 w-3.5" />
+        </Link>
+        <Link
+          href="/dict"
+          className="flex flex-1 items-center justify-between rounded-lg border border-neutral-200 px-3 py-2 text-xs text-neutral-600 hover:bg-neutral-50 dark:border-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-900"
+        >
+          <span className="flex items-center gap-1.5">
+            <SearchIcon title="全量词库" className="h-3.5 w-3.5 text-blue-500" />
+            全量词库
+          </span>
+          <ChevronRightIcon className="h-3.5 w-3.5" />
+        </Link>
+      </div>
 
       {/* 今日学习提醒：到期复习 + 今日新词合并展示，形成闭环 */}
       <div className="flex items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm dark:border-neutral-800 dark:bg-neutral-900">
@@ -221,9 +301,22 @@ export default function HomePage() {
           {loading && (
             <li className="px-4 py-3 text-sm text-neutral-400">搜索中…</li>
           )}
-          {!loading && results.length === 0 && (
+          {!loading && results.length === 0 && !aiSearching && !aiEntry && !aiError && (
             <li className="px-4 py-3 text-sm text-neutral-400">
               无匹配，试试检查拼写
+            </li>
+          )}
+          {!loading && results.length === 0 && aiSearching && (
+            <li className="px-4 py-3 text-sm text-neutral-400">
+              <span className="inline-flex items-center gap-2">
+                <span className="animate-pulse">●</span>
+                AI 搜索中…
+              </span>
+            </li>
+          )}
+          {!loading && results.length === 0 && aiError && !aiEntry && (
+            <li className="px-4 py-3 text-sm text-neutral-400">
+              {aiError}
             </li>
           )}
           {!loading &&
@@ -241,6 +334,33 @@ export default function HomePage() {
                 </Link>
               </li>
             ))}
+          {/* AI 搜索结果（已自动加入我的词库） */}
+          {!loading && results.length === 0 && aiEntry && (
+            <li>
+              <Link
+                href={`/word/${encodeURIComponent(aiEntry.word)}`}
+                onClick={() => handlePick(aiEntry.word)}
+                className="flex items-center justify-between px-4 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-900"
+              >
+                <span className="flex flex-col gap-0.5">
+                  <span className="font-mono text-base">{aiEntry.word}</span>
+                  {aiEntry.translation && (
+                    <span className="text-xs text-neutral-500 line-clamp-1">
+                      {aiEntry.translation.split("\n")[0]}
+                    </span>
+                  )}
+                </span>
+                <span className="flex shrink-0 items-center gap-1.5">
+                  <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] text-blue-600 dark:bg-blue-950 dark:text-blue-300">
+                    AI
+                  </span>
+                  <span className="text-[10px] text-green-600 dark:text-green-400">
+                    已入库
+                  </span>
+                </span>
+              </Link>
+            </li>
+          )}
         </ul>
       )}
 

@@ -308,12 +308,13 @@ export async function POST(request: NextRequest) {
   }
 
   // 通道3：免费通道未配置或失败 → 本地兜底引导文案（保证无 Key 也能响应）
+  // 重要：fallback 不消耗额度（AI 未成功返回，对齐用户需求）
   const fallbackText = buildFallbackReply(messages);
-  const quota: QuotaSnapshot = await consumeQuota(clientId);
+  const currentQuota = await peekQuota(clientId);
   return NextResponse.json({
     ok: true,
     text: fallbackText,
-    quota,
+    quota: currentQuota,
     fallback: true,
   });
 }
