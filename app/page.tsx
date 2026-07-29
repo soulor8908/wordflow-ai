@@ -20,7 +20,14 @@ import {
 } from "@/lib/search/search-history";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { BookIcon, BooksIcon, CloseIcon, PlusIcon, SearchIcon } from "@/components/ui/icons";
+import {
+  BookIcon,
+  BooksIcon,
+  ChevronRightIcon,
+  CloseIcon,
+  PlusIcon,
+  SearchIcon,
+} from "@/components/ui/icons";
 
 // OnboardingDialog 仅首次访问使用，异步加载减小首屏 bundle
 const OnboardingDialog = dynamic(
@@ -134,7 +141,7 @@ export default function HomePage() {
               {activeBookName}
             </span>
           </span>
-          <span className="text-xs text-neutral-400">切换 →</span>
+          <span className="text-xs text-neutral-400">切换 <ChevronRightIcon className="h-4 w-4 inline" /></span>
         </Link>
       )}
 
@@ -155,7 +162,7 @@ export default function HomePage() {
                 : dueCount > 0
                   ? `（${dueCount} 词待复习）`
                   : `（${newWordCount} 个新词）`}
-              ，去学习 →
+              ，去学习 <ChevronRightIcon className="h-4 w-4 inline" />
             </span>
           </Link>
         ) : (
@@ -169,7 +176,7 @@ export default function HomePage() {
           href="/stats"
           className="shrink-0 text-xs text-neutral-500 hover:underline"
         >
-          统计 →
+          统计 <ChevronRightIcon className="h-4 w-4 inline" />
         </Link>
       </div>
 
@@ -242,16 +249,17 @@ export default function HomePage() {
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <span className="text-xs text-neutral-400">最近搜索</span>
-            <button
+            <Button
               type="button"
+              variant="link"
+              size="sm"
               onClick={() => {
                 clearSearchHistory();
                 setHistory([]);
               }}
-              className="text-xs text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
             >
               清空
-            </button>
+            </Button>
           </div>
           <div className="flex flex-wrap gap-2">
             {history.map((w) => (

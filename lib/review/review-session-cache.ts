@@ -96,3 +96,37 @@ export function clearReviewSession(): void {
 export function isRating(v: unknown): v is Rating {
   return v === "Again" || v === "Hard" || v === "Good" || v === "Easy";
 }
+
+/**
+ * 从 FSRS 缓存队列中过滤掉已掌握的单词。
+ *
+ * 解决场景：用户在刷题模式标记某词为"已会"后，切到今日复习仍看到该词。
+ * 根因：FsrsReview 从 localStorage 恢复队列快照时跳过了 DB 再校验，
+ * 缓存中 due 类型的 card.verification 是冻结的旧值。
+ *
+ * 调用方需从 DB 查出 mastered 的 word 集合传入，本函数做纯过滤 + index 修正。
+ */
+export function filterMasteredFromFsrsCache(
+  cache: FsrsCache,
+  masteredWords: Set<string>
+): FsrsCache {
+  if (masteredWords.size === 0) return cache;
+
+  const filteredQueue = cache.queue.filter((item) => {
+    if (item.type === "due" && item.card) {
+      return !masteredWords.has(item.card.word.toLowerCase());
+    }
+    if (item.type === "new" && item.word) {
+      return !masteredWords.has(item.word.toLowerCase());
+    }
+    return true;
+  });
+
+  // index 修正：过滤后队列变短，确保 index 不越界
+  const newIndex = Math.min(
+    cache.index,
+    Math.max(0, filteredQueue.length - 1)
+  );
+
+  return { ...cache, queue: filteredQueue, index: newIndex };
+}

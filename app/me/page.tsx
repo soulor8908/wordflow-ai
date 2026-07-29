@@ -28,7 +28,13 @@ import {
 } from "@/lib/ai/provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BookIcon, CloudIcon, RefreshIcon, RobotIcon } from "@/components/ui/icons";
+import {
+  BookIcon,
+  CloudIcon,
+  ChevronRightIcon,
+  RefreshIcon,
+  RobotIcon,
+} from "@/components/ui/icons";
 import PwaSettings from "@/app/stats/pwa-settings";
 import {
   exportSyncBundle,
@@ -180,7 +186,7 @@ export default function MePage() {
               href="/review"
               className="text-xs text-blue-600 hover:underline"
             >
-              去复习 →
+              去复习 <ChevronRightIcon className="h-4 w-4 inline" />
             </Link>
           )}
         </div>

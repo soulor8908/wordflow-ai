@@ -14,7 +14,6 @@ export interface PronunciationOptions {
 const DEFAULT_RATE = 0.9;
 const DEFAULT_PITCH = 1.0;
 const DEBOUNCE_MS = 500;
-const TTS_TIMEOUT_MS = 5000;
 
 // --- 模块级状态 ---
 let lastSpokenWord = "";
@@ -133,11 +132,18 @@ function speakWithTTS(word: string, rate: number): Promise<boolean> {
 
   return new Promise<boolean>((resolve) => {
     let settled = false;
+    // Android WebView 上 onend 经常不触发，改为 150ms 后检查 speaking 状态：
+    // - speaking=true → TTS 已启动，视为成功（不等 onend）
+    // - speaking=false → TTS 未启动，立即 fallback 到 audio（仍在用户手势栈内）
     const timer = setTimeout(() => {
       if (settled) return;
       settled = true;
-      resolve(false);
-    }, TTS_TIMEOUT_MS);
+      try {
+        resolve(window.speechSynthesis.speaking);
+      } catch {
+        resolve(false);
+      }
+    }, 150);
 
     try {
       const utterance = new SpeechSynthesisUtterance(word);

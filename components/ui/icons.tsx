@@ -219,3 +219,21 @@ export function TrashIcon(props: IconProps) {
     </Base>
   );
 }
+
+/** 向左箭头（返回/上一个） */
+export function ChevronLeftIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <polyline points="15 18 9 12 15 6" />
+    </Base>
+  );
+}
+
+/** 向右箭头（前进/下一个） */
+export function ChevronRightIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <polyline points="9 18 15 12 9 6" />
+    </Base>
+  );
+}

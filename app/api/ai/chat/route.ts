@@ -24,8 +24,8 @@ interface ChatRequestBody extends Partial<AiSessionConfig> {
   clientId?: string;
 }
 
-/** AI 请求超时（ms） */
-const CHAT_TIMEOUT_MS = 30_000;
+/** AI 请求超时（ms）—— 上游模型冷启动/长上下文时首 token 可能 >10s，60s 留足余量 */
+const CHAT_TIMEOUT_MS = 60_000;
 
 function fetchWithTimeout(input: string, init: RequestInit): Promise<Response> {
   const signal =
@@ -59,35 +59,25 @@ function isFreeChannelAvailable(): boolean {
 }
 
 /**
- * 调用上游 OpenAI 兼容 API（原始 fetch，绕过 AI SDK 的黑盒解析）。
+ * 调用上游 OpenAI 兼容 API 并以流式返回（stream: true）。
  *
- * 不用 @ai-sdk/openai 的 generateText，因为它对响应格式要求严格，
- * 上游返回非标准 JSON（如 HTML 错误页、空响应、SSE 流）时会抛
- * "Invalid JSON response"，掩盖真实错误。
+ * 返回 ReadableStream<Uint8Array>，流格式为 NDJSON（每行一个 JSON）：
+ *   {"type":"delta","content":"..."} / {"type":"done"} / {"type":"error","message":"..."}
  *
- * 直接 fetch + 手动解析，能捕获 HTTP 状态码、Content-Type 和响应体，
- * 在失败时返回可操作的错误信息。
- *
- * @returns { text: string } 或抛出带上下文的 Error
+ * 上游使用 SSE（每行 data: {...}），解析 choices[0].delta.content。
+ * 上游返回 data: [DONE] 时发送 done 行。出错时发送 error 行。
  */
-async function callUpstream(
+async function callUpstreamStream(
   session: AiSessionConfig,
   systemPrompt: string,
   messages: ChatMessage[]
-): Promise<string> {
+): Promise<ReadableStream<Uint8Array>> {
   const cfg = getProviderConfig(session.provider);
   const finalBaseURL = (session.baseURL || cfg.baseURL).trim();
   const finalModel = resolveModel(session);
-
-  if (!finalBaseURL) {
-    throw new Error("baseURL 为空，请检查 Provider 配置");
-  }
-
-  // SSRF 防护
+  if (!finalBaseURL) throw new Error("baseURL 为空，请检查 Provider 配置");
   validateBaseUrl(finalBaseURL);
-
   const endpoint = finalBaseURL.replace(/\/+$/, "") + "/chat/completions";
-
   const res = await fetchWithTimeout(endpoint, {
     method: "POST",
     headers: {
@@ -100,61 +90,77 @@ async function callUpstream(
         { role: "system", content: systemPrompt },
         ...messages.map((m) => ({ role: m.role, content: m.content })),
       ],
-      stream: false,
+      stream: true,
       temperature: 0.7,
       max_tokens: 1024,
     }),
   });
 
-  const contentType = res.headers.get("content-type") ?? "";
-  const bodyText = await res.text().catch(() => "");
-  const bodySnippet = bodyText.slice(0, 300);
-
-  // 非 JSON 响应（HTML 错误页 / 网关错误 / 空响应）
-  if (!contentType.includes("application/json")) {
-    const err = new Error(
-      `HTTP ${res.status} ${contentType || "非 JSON"}: ${bodySnippet.slice(0, 120)}`
-    );
+  if (!res.ok || !res.body) {
+    const bodyText = await res.text().catch(() => "");
+    const err = new Error(`HTTP ${res.status}: ${bodyText.slice(0, 120)}`);
     (err as Error & { httpStatus?: number }).httpStatus = res.status;
     throw err;
   }
 
-  // 解析 JSON
-  let json: Record<string, unknown>;
-  try {
-    json = JSON.parse(bodyText);
-  } catch {
-    const err = new Error(`JSON 解析失败: ${bodySnippet.slice(0, 120)}`);
-    (err as Error & { httpStatus?: number }).httpStatus = res.status;
-    throw err;
-  }
+  const upstreamReader = res.body.getReader();
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  let buffer = "";
+  let closed = false;
 
-  // 检查上游错误
-  if (!res.ok) {
-    const apiError = json.error as Record<string, unknown> | undefined;
-    const errMsg =
-      (typeof apiError?.message === "string" && apiError.message) ||
-      (typeof json.message === "string" && json.message) ||
-      `HTTP ${res.status}`;
-    const err = new Error(`HTTP ${res.status}: ${errMsg}`);
-    (err as Error & { httpStatus?: number }).httpStatus = res.status;
-    throw err;
-  }
-
-  // 提取回复文本（兼容 choices[0].message.content 和 data[0].content）
-  const choices = json.choices as Array<{ message?: { content?: string } }> | undefined;
-  if (choices && choices.length > 0 && choices[0].message?.content) {
-    return choices[0].message.content;
-  }
-
-  // 部分兼容服务用 data 数组
-  const data = json.data as Array<{ content?: string }> | undefined;
-  if (data && data.length > 0 && data[0].content) {
-    return data[0].content;
-  }
-
-  // 200 但结构异常
-  throw new Error(`上游返回异常结构: ${bodySnippet.slice(0, 120)}`);
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      if (closed) return;
+      try {
+        const { done, value } = await upstreamReader.read();
+        if (done) {
+          controller.close();
+          closed = true;
+          return;
+        }
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith("data:")) continue;
+          const data = trimmed.slice(5).trim();
+          if (data === "[DONE]") {
+            controller.enqueue(
+              encoder.encode(JSON.stringify({ type: "done" }) + "\n")
+            );
+            controller.close();
+            closed = true;
+            return;
+          }
+          try {
+            const parsed = JSON.parse(data);
+            const delta = parsed.choices?.[0]?.delta?.content;
+            if (delta) {
+              controller.enqueue(
+                encoder.encode(
+                  JSON.stringify({ type: "delta", content: delta }) + "\n"
+                )
+              );
+            }
+          } catch {
+            // 跳过无法解析的行（如上游心跳/注释）
+          }
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "流式读取失败";
+        controller.enqueue(
+          encoder.encode(JSON.stringify({ type: "error", message: msg }) + "\n")
+        );
+        controller.close();
+        closed = true;
+      }
+    },
+    cancel() {
+      upstreamReader.cancel().catch(() => {});
+    },
+  });
 }
 
 /** 构造错误响应 */
@@ -211,8 +217,13 @@ export async function POST(request: NextRequest) {
   if (provider && apiKey) {
     const session: AiSessionConfig = { provider, apiKey, baseURL, model };
     try {
-      const text = await callUpstream(session, systemPrompt, messages);
-      return NextResponse.json({ ok: true, text });
+      const stream = await callUpstreamStream(session, systemPrompt, messages);
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "application/x-ndjson; charset=utf-8",
+          "Cache-Control": "no-cache",
+        },
+      });
     } catch (err) {
       const errorClass = classifyAiError(err);
       const rawError =
@@ -253,9 +264,21 @@ export async function POST(request: NextRequest) {
   const freeSession = getFreeSession();
   if (freeSession) {
     try {
-      const text = await callUpstream(freeSession, systemPrompt, messages);
+      const stream = await callUpstreamStream(freeSession, systemPrompt, messages);
       const quota: QuotaSnapshot = consumeQuota(clientId);
-      return NextResponse.json({ ok: true, text, quota });
+      // 在流前面插入 meta 行（含 quota），用 TransformStream 拼接
+      const encoder = new TextEncoder();
+      const metaLine = encoder.encode(JSON.stringify({ type: "meta", quota }) + "\n");
+      const { readable, writable } = new TransformStream();
+      const writer = writable.getWriter();
+      writer.write(metaLine);
+      stream.pipeTo(writable).catch(() => {});
+      return new Response(readable, {
+        headers: {
+          "Content-Type": "application/x-ndjson; charset=utf-8",
+          "Cache-Control": "no-cache",
+        },
+      });
     } catch (err) {
       const errorClass = classifyAiError(err);
       const rawError =

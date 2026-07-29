@@ -6,8 +6,8 @@
  */
 import { forwardRef, type ButtonHTMLAttributes } from "react";
 
-type Variant = "primary" | "secondary" | "ghost" | "danger" | "success";
-type Size = "sm" | "md" | "lg";
+type Variant = "primary" | "secondary" | "ghost" | "danger" | "success" | "link" | "plain";
+type Size = "sm" | "md" | "lg" | "icon" | "iconSm";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
@@ -25,12 +25,18 @@ const variantClasses: Record<Variant, string> = {
     "bg-red-600 text-white hover:bg-red-700 border border-red-600",
   success:
     "bg-green-600 text-white hover:bg-green-700 border border-green-600",
+  link:
+    "bg-transparent text-blue-600 hover:text-blue-700 hover:underline border border-transparent px-0 py-0",
+  plain:
+    "bg-transparent text-inherit hover:bg-neutral-100 border border-transparent px-0 py-0 dark:hover:bg-neutral-800",
 };
 
 const sizeClasses: Record<Size, string> = {
   sm: "px-2 py-0.5 text-xs",
   md: "px-4 py-2 text-sm",
   lg: "px-6 py-2.5 text-base",
+  icon: "h-10 w-10 p-0",
+  iconSm: "h-8 w-8 p-0",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(

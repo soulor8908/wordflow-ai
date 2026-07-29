@@ -22,6 +22,7 @@ import {
 } from "@/lib/review/active-book";
 import { getBookProgress, type BookProgress } from "@/lib/review/book-queue";
 import { Button } from "@/components/ui/button";
+import { ChevronLeftIcon } from "@/components/ui/icons";
 
 interface BookWithProgress extends BookMeta {
   progress?: BookProgress;
@@ -86,7 +87,7 @@ export default function BooksPage() {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-4 px-4 py-10">
         <Link href="/" className="text-sm text-blue-600 hover:underline">
-          ← 返回查词
+          <ChevronLeftIcon className="h-4 w-4 inline" /> 返回查词
         </Link>
         <p className="text-sm text-red-500">{error}</p>
       </main>

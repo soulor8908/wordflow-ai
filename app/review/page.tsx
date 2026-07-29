@@ -27,13 +27,15 @@ import type { Rating } from "@/lib/review/fsrs-scheduler";
 import { recordStudy } from "@/lib/stats/streak-io";
 import { todayLocalDate } from "@/lib/review/book-queue";
 import { getActiveBook } from "@/lib/review/active-book";
-import { listItemsByPrefix } from "@/lib/storage/db";
+import { getItem, listItemsByPrefix } from "@/lib/storage/db";
 import type { WordCard } from "@/lib/review/fsrs-scheduler";
+import { cardKey } from "@/lib/review/favorite";
 import { Button } from "@/components/ui/button";
-import { TrophyIcon, VolumeIcon } from "@/components/ui/icons";
+import { ChevronLeftIcon, TrophyIcon, VolumeIcon } from "@/components/ui/icons";
 import { usePronunciation } from "@/lib/audio/use-pronunciation";
 import { useSwipe } from "@/lib/review/use-swipe";
 import {
+  filterMasteredFromFsrsCache,
   loadReviewSession,
   saveReviewSession,
   type ReviewSessionCache,
@@ -88,7 +90,7 @@ function ModeSwitcher({
           onClick={() => onChange("fsrs")}
           className={`rounded-md px-3 py-1.5 font-medium transition-colors ${
             mode === "fsrs"
-              ? "bg-white text-blue-600 shadow-sm dark:bg-neutral-950 dark:text-blue-400"
+              ? "bg-blue-600 text-white shadow-sm"
               : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
           }`}
         >
@@ -99,7 +101,7 @@ function ModeSwitcher({
           onClick={() => onChange("drill")}
           className={`rounded-md px-3 py-1.5 font-medium transition-colors ${
             mode === "drill"
-              ? "bg-white text-blue-600 shadow-sm dark:bg-neutral-950 dark:text-blue-400"
+              ? "bg-blue-600 text-white shadow-sm"
               : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
           }`}
         >
@@ -143,12 +145,27 @@ function FsrsReview() {
         fsrsSnap.index >= 0 &&
         fsrsSnap.index < fsrsSnap.queue.length
       ) {
-        setQueue(fsrsSnap.queue);
-        setIndex(fsrsSnap.index);
-        setFlipped(fsrsSnap.flipped);
-        setOutcomes(Array.isArray(fsrsSnap.outcomes) ? fsrsSnap.outcomes : []);
-        setPhase("reviewing");
-        return;
+        // DB 再校验：过滤掉已标记为 mastered 的词（防止缓存快照过期）
+        const masteredWords = new Set<string>();
+        for (const item of fsrsSnap.queue) {
+          if (item.type === "due" && item.card) {
+            const latest = await getItem<{ verification?: string }>(cardKey(item.card.word));
+            if (latest?.verification === "mastered") {
+              masteredWords.add(item.card.word.toLowerCase());
+            }
+          }
+        }
+        const filtered = filterMasteredFromFsrsCache(fsrsSnap, masteredWords);
+        if (filtered.queue.length === 0) {
+          // 过滤后队列空了，跳到正常加载流程（不 return）
+        } else {
+          setQueue(filtered.queue);
+          setIndex(filtered.index);
+          setFlipped(filtered.flipped);
+          setOutcomes(Array.isArray(filtered.outcomes) ? filtered.outcomes : []);
+          setPhase("reviewing");
+          return;
+        }
       }
 
       try {
@@ -393,20 +410,28 @@ function FsrsReview() {
       </div>
 
       {/* 卡片 */}
-      <Button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => {
+          if (submitting) return;
           if (swipe.shouldSuppressClick()) return; // 滑动后的合成 click 不翻面
           flip();
         }}
-        disabled={submitting}
+        onKeyDown={(e) => {
+          if (submitting) return;
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            if (!swipe.shouldSuppressClick()) flip();
+          }
+        }}
+        aria-disabled={submitting || undefined}
         onTouchStart={swipe.onTouchStart}
         onTouchMove={swipe.onTouchMove}
         onTouchEnd={swipe.onTouchEnd}
         style={swipe.touchActionStyle}
         aria-label={flipped ? "点击返回正面" : "点击翻面查看释义"}
-        variant="ghost"
-        className="mt-4 flex max-h-[55vh] min-h-[12rem] flex-1 flex-col items-center justify-center gap-3 overflow-y-auto rounded-2xl border border-neutral-200 bg-white px-5 py-6 text-center shadow-sm dark:border-neutral-800 dark:bg-neutral-950"
+        className={`mt-4 flex max-h-[55vh] min-h-[12rem] flex-1 cursor-pointer flex-col items-center justify-center gap-3 overflow-y-auto rounded-2xl border border-neutral-200 bg-white px-5 py-6 text-center shadow-sm transition-colors hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-950 dark:hover:bg-neutral-900 ${submitting ? "opacity-50 cursor-not-allowed" : ""}`}
       >
         {!flipped ? (
           <>
@@ -423,7 +448,7 @@ function FsrsReview() {
         ) : (
           <CardBack word={word} entry={entry} loading={entryLoading} />
         )}
-      </Button>
+      </div>
 
       {/* 反馈按钮 */}
       <div className="mt-4 flex shrink-0 flex-col gap-2 pb-2">
@@ -684,6 +709,13 @@ function DrillMode() {
       if (activeBookId) {
         await advanceCursor(activeBookId, offset + 1);
       }
+      // 同步失效 fsrs 缓存中的该词（防止切到今日复习仍看到）
+      const cached = loadReviewSession();
+      if (cached?.fsrs) {
+        const mastered = new Set([currentWord.toLowerCase()]);
+        const filtered = filterMasteredFromFsrsCache(cached.fsrs, mastered);
+        saveReviewSession({ ...cached, fsrs: filtered });
+      }
       await recordStudy(
         todayLocalDate(),
         { newCount: 1, reviewCount: 0, correctCount: 1 }
@@ -872,13 +904,14 @@ function DrillMode() {
               {order === "sequential" ? "顺序" : "随机"}
               {filterMastered ? " · 过滤已掌握" : ""}
             </span>
-            <button
+            <Button
               type="button"
+              variant="link"
+              size="sm"
               onClick={() => setDrillPhase("selecting")}
-              className="text-neutral-400 hover:underline"
             >
               退出刷题
-            </button>
+            </Button>
           </div>
         </div>
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
@@ -890,20 +923,28 @@ function DrillMode() {
       </div>
 
       {/* 卡片 */}
-      <Button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => {
+          if (submitting) return;
           if (drillSwipe.shouldSuppressClick()) return; // 滑动后的合成 click 不翻面
           flip();
         }}
-        disabled={submitting}
+        onKeyDown={(e) => {
+          if (submitting) return;
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            if (!drillSwipe.shouldSuppressClick()) flip();
+          }
+        }}
+        aria-disabled={submitting || undefined}
         onTouchStart={drillSwipe.onTouchStart}
         onTouchMove={drillSwipe.onTouchMove}
         onTouchEnd={drillSwipe.onTouchEnd}
         style={drillSwipe.touchActionStyle}
         aria-label={flipped ? "点击返回正面" : "点击翻面查看释义"}
-        variant="ghost"
-        className="mt-4 flex max-h-[55vh] min-h-[12rem] flex-1 flex-col items-center justify-center gap-3 overflow-y-auto rounded-2xl border border-neutral-200 bg-white px-5 py-6 text-center shadow-sm dark:border-neutral-800 dark:bg-neutral-950"
+        className={`mt-4 flex max-h-[55vh] min-h-[12rem] flex-1 cursor-pointer flex-col items-center justify-center gap-3 overflow-y-auto rounded-2xl border border-neutral-200 bg-white px-5 py-6 text-center shadow-sm transition-colors hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-950 dark:hover:bg-neutral-900 ${submitting ? "opacity-50 cursor-not-allowed" : ""}`}
       >
         {!flipped ? (
           <>
@@ -920,7 +961,7 @@ function DrillMode() {
         ) : (
           <CardBack word={word} entry={entry} loading={entryLoading} />
         )}
-      </Button>
+      </div>
 
       {/* 反馈按钮 */}
       <div className="mt-4 flex shrink-0 flex-col gap-2 pb-2">
@@ -969,7 +1010,7 @@ function DrillMode() {
             disabled={index === 0 || submitting}
             className="text-xs text-neutral-500"
           >
-            ← 上一个
+            <ChevronLeftIcon className="h-4 w-4 inline" /> 上一个
           </Button>
           <div className="flex gap-2">
             <Button

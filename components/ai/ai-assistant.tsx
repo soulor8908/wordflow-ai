@@ -54,7 +54,10 @@ import {
   EditIcon,
   TrashIcon,
   PlusIcon,
+  ChevronRightIcon,
 } from "@/components/ui/icons";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface QuotaSnapshot {
   used: number;
@@ -64,7 +67,7 @@ interface QuotaSnapshot {
 
 const CLIENT_ID_KEY = "wordflow:ai-client-id";
 const FAB_POS_KEY = "wordflow:ai-fab-pos";
-const AI_FETCH_TIMEOUT_MS = 30_000;
+const AI_FETCH_TIMEOUT_MS = 70_000;
 
 function fetchWithTimeout(
   input: string,
@@ -263,7 +266,7 @@ export default function AiAssistant() {
       window.removeEventListener(AI_CONFIG_CHANGED_EVENT, onConfigChanged);
   }, []);
 
-  // ── 悬浮按钮拖动（mousedown → mousemove → mouseup） ──
+  // ── 悬浮按钮拖动（mouse + touch 双模态） ──
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       const drag = fabDragRef.current;
@@ -275,6 +278,24 @@ export default function AiAssistant() {
         drag.moved = true;
       }
       if (!drag.moved) return;
+      const btnSize = 48;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const newX = Math.max(0, Math.min(vw - btnSize, drag.startPosX + dx));
+      const newY = Math.max(0, Math.min(vh - btnSize, drag.startPosY + dy));
+      setFabPos({ x: newX, y: newY });
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      const drag = fabDragRef.current;
+      if (!drag || e.touches.length === 0) return;
+      const touch = e.touches[0];
+      const dx = touch.clientX - drag.startX;
+      const dy = touch.clientY - drag.startY;
+      if (!drag.moved && Math.abs(dx) + Math.abs(dy) > 4) {
+        drag.moved = true;
+      }
+      if (!drag.moved) return;
+      e.preventDefault(); // 阻止页面滚动
       const btnSize = 48;
       const vw = window.innerWidth;
       const vh = window.innerHeight;
@@ -300,9 +321,13 @@ export default function AiAssistant() {
     };
     document.addEventListener("mousemove", onMove);
     document.addEventListener("mouseup", onUp);
+    document.addEventListener("touchmove", onTouchMove, { passive: false });
+    document.addEventListener("touchend", onUp);
     return () => {
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", onUp);
+      document.removeEventListener("touchmove", onTouchMove);
+      document.removeEventListener("touchend", onUp);
     };
   }, [fabPos]);
 
@@ -420,6 +445,7 @@ export default function AiAssistant() {
     setSending(true);
     setError(null);
 
+    let fullText = "";
     try {
       const payload: Record<string, unknown> = { messages: nextMessages };
       if (config) {
@@ -435,24 +461,96 @@ export default function AiAssistant() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
-      if (data.quota) setQuota(data.quota);
-      if (!data.ok) {
-        if (data.error === "quota-exhausted") {
-          setQuota(data.quota ?? null);
+
+      // 非流式响应（错误或 fallback 返回 JSON）
+      const contentType = res.headers.get("content-type") ?? "";
+      if (contentType.includes("application/json")) {
+        const data = await res.json();
+        if (data.quota) setQuota(data.quota);
+        if (!data.ok) {
+          if (data.error === "quota-exhausted") {
+            setQuota(data.quota ?? null);
+          }
+          throw new Error(data.message || "AI 请求失败");
         }
-        throw new Error(data.message || "AI 请求失败");
+        if (data.fallback) {
+          setError("AI 通道暂不可用，请配置 API Key 后重试");
+          setMessages(messages);
+          setSessionMessages(sessionId, messages);
+          refreshSessions();
+        } else {
+          const aiMsg: ChatMessage = { role: "assistant", content: data.text };
+          const updated: ChatMessage[] = [...nextMessages, aiMsg];
+          setMessages(updated);
+          appendMessages(sessionId, [aiMsg]);
+          refreshSessions();
+        }
+      } else {
+        // 流式响应（NDJSON：每行一个 JSON）
+        if (!res.body) throw new Error("AI 返回了空响应");
+
+        // 先 push 一条空 assistant 消息，流式增量更新
+        let currentMessages: ChatMessage[] = [
+          ...nextMessages,
+          { role: "assistant", content: "" },
+        ];
+        setMessages(currentMessages);
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            try {
+              const parsed = JSON.parse(trimmed);
+              if (parsed.type === "meta" && parsed.quota) {
+                setQuota(parsed.quota);
+              } else if (parsed.type === "delta" && parsed.content) {
+                fullText += parsed.content;
+                currentMessages = [
+                  ...currentMessages.slice(0, -1),
+                  { role: "assistant", content: fullText },
+                ];
+                setMessages(currentMessages);
+              } else if (parsed.type === "error") {
+                throw new Error(parsed.message || "AI 流式响应出错");
+              }
+            } catch (e) {
+              if (e instanceof Error && e.message.includes("流式")) throw e;
+            }
+          }
+        }
+
+        // 流结束后持久化
+        if (fullText) {
+          appendMessages(sessionId, [
+            { role: "assistant", content: fullText },
+          ]);
+          refreshSessions();
+        }
       }
-      const aiMsg: ChatMessage = { role: "assistant", content: data.text };
-      const updated: ChatMessage[] = [...nextMessages, aiMsg];
-      setMessages(updated);
-      appendMessages(sessionId, [aiMsg]);
-      refreshSessions();
     } catch (e) {
       const msg = friendlyAiError(e);
       setError(msg);
-      setMessages(messages);
-      setSessionMessages(sessionId, messages);
+      if (!fullText) {
+        // 没收到任何文本，回滚到原始消息
+        setMessages(messages);
+        setSessionMessages(sessionId, messages);
+      } else {
+        // 有部分文本，保留并持久化
+        appendMessages(sessionId, [
+          { role: "assistant", content: fullText },
+        ]);
+        refreshSessions();
+      }
       refreshSessions();
     } finally {
       setSending(false);
@@ -622,6 +720,19 @@ export default function AiAssistant() {
           };
           document.body.style.userSelect = "none";
         }}
+        onTouchStart={(e) => {
+          // 移动端拖动起点
+          if (e.touches.length === 0) return;
+          const touch = e.touches[0];
+          const rect = e.currentTarget.getBoundingClientRect();
+          fabDragRef.current = {
+            startX: touch.clientX,
+            startY: touch.clientY,
+            startPosX: rect.left,
+            startPosY: rect.top,
+            moved: false,
+          };
+        }}
       >
         {open ? (
           <CloseIcon title="关闭" className="h-5 w-5" />
@@ -759,26 +870,29 @@ export default function AiAssistant() {
                                 : ""
                             }`}
                           >
-                            <button
+                            <Button
                               type="button"
+                              variant="plain"
                               onClick={() => switchSession(s.id)}
-                              className="flex-1 truncate text-left"
+                              className="flex-1 !flex-col !items-start !justify-start"
                             >
-                              <p className="truncate">{s.title}</p>
-                              <p className="mt-0.5 text-[10px] text-neutral-400">
+                              <span className="block w-full truncate text-left">{s.title}</span>
+                              <span className="mt-0.5 block text-left text-[10px] text-neutral-400">
                                 {new Date(s.updatedAt).toLocaleString("zh-CN")}
                                 {" · "}
                                 {s.messageCount} 条
-                              </p>
-                            </button>
-                            <button
+                              </span>
+                            </Button>
+                            <Button
                               type="button"
+                              variant="plain"
+                              size="iconSm"
                               onClick={() => handleDeleteSession(s.id)}
                               aria-label="删除会话"
-                              className="shrink-0 text-neutral-300 opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100"
+                              className="shrink-0 !text-neutral-300 opacity-0 transition-opacity hover:!text-red-500 group-hover:opacity-100"
                             >
                               ×
-                            </button>
+                            </Button>
                           </div>
                         </li>
                       ))}
@@ -791,10 +905,17 @@ export default function AiAssistant() {
 
           {/* 顶部提示条 */}
           {!config && (
-            <button
-              type="button"
+            <div
+              role="button"
+              tabIndex={0}
               onClick={() => setOpen(false)}
-              className="flex items-center justify-between gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-left text-xs text-amber-700 transition-colors hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setOpen(false);
+                }
+              }}
+              className="flex cursor-pointer items-center justify-between gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-left text-xs text-amber-700 transition-colors hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300"
             >
               <span>
                 {freeEnabled
@@ -809,9 +930,9 @@ export default function AiAssistant() {
                 }}
                 className="shrink-0 font-medium underline underline-offset-2"
               >
-                去添加 →
+                去添加 <ChevronRightIcon className="inline h-3 w-3" />
               </Link>
-            </button>
+            </div>
           )}
 
           {/* 消息区 */}
@@ -832,7 +953,7 @@ export default function AiAssistant() {
                   onClick={() => setOpen(false)}
                   className="mt-1 rounded-lg border border-neutral-300 px-3 py-1.5 text-xs text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-900"
                 >
-                  去配置 API Key →
+                  去配置 API Key <ChevronRightIcon className="inline h-3 w-3" />
                 </Link>
               </div>
             )}
@@ -881,18 +1002,26 @@ export default function AiAssistant() {
                 }`}
               >
                 <div
-                  className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${
+                  className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
                     m.role === "user"
                       ? "bg-blue-600 text-white"
                       : "bg-neutral-100 text-neutral-800 dark:bg-neutral-900 dark:text-neutral-200"
                   }`}
                 >
-                  {m.content}
+                  {m.role === "assistant" ? (
+                    <div className="leading-relaxed [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_li]:ml-4 [&_code]:rounded [&_code]:bg-neutral-200 [&_code]:px-1 dark:[&_code]:bg-neutral-700 [&_pre]:overflow-x-auto [&_a]:text-blue-600 [&_a]:underline">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {m.content}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <span className="whitespace-pre-wrap">{m.content}</span>
+                  )}
                 </div>
               </div>
             ))}
 
-            {sending && (
+            {sending && (messages.length === 0 || messages[messages.length - 1]?.role !== "assistant" || (messages[messages.length - 1]?.content ?? "") === "") && (
               <div className="mb-2 flex justify-start">
                 <div className="rounded-2xl bg-neutral-100 px-3 py-2 text-sm text-neutral-400 dark:bg-neutral-900">
                   <span className="inline-flex gap-1">
@@ -913,7 +1042,7 @@ export default function AiAssistant() {
                     onClick={() => setOpen(false)}
                     className="ml-1 underline hover:text-red-700 dark:hover:text-red-400"
                   >
-                    去配置 →
+                    去配置 <ChevronRightIcon className="inline h-3 w-3" />
                   </Link>
                 )}
               </div>
@@ -1004,41 +1133,46 @@ export default function AiAssistant() {
                     key={qi.id}
                     className="group flex items-center justify-between gap-2 border-b border-neutral-50 px-4 py-3 hover:bg-neutral-50 dark:border-neutral-900 dark:hover:bg-neutral-900"
                   >
-                    <button
+                    <Button
                       type="button"
+                      variant="plain"
                       onClick={() => handleSelectQuickInput(qi)}
-                      className="flex-1 text-left"
+                      className="flex-1 !flex-col !items-start !justify-start"
                     >
-                      <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                      <span className="block w-full text-left text-sm font-medium text-neutral-700 dark:text-neutral-300">
                         {qi.label}
                         {qi.builtin && (
                           <span className="ml-2 rounded-full bg-neutral-100 px-1.5 py-0.5 text-[9px] text-neutral-400 dark:bg-neutral-800">
                             预置
                           </span>
                         )}
-                      </p>
-                      <p className="mt-0.5 truncate text-xs text-neutral-400">
+                      </span>
+                      <span className="mt-0.5 block w-full truncate text-left text-xs text-neutral-400">
                         {qi.prompt}
-                      </p>
-                    </button>
+                      </span>
+                    </Button>
                     <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                      <button
+                      <Button
                         type="button"
+                        variant="plain"
+                        size="iconSm"
                         onClick={() => handleEditQuickInput(qi)}
                         aria-label="编辑"
-                        className="text-neutral-400 hover:text-blue-500"
+                        className="!text-neutral-400 hover:!text-blue-500"
                       >
                         <EditIcon title="编辑" className="h-4 w-4" />
-                      </button>
+                      </Button>
                       {!qi.builtin && (
-                        <button
+                        <Button
                           type="button"
+                          variant="plain"
+                          size="iconSm"
                           onClick={() => handleDeleteQuickInput(qi.id)}
                           aria-label="删除"
-                          className="text-neutral-400 hover:text-red-500"
+                          className="!text-neutral-400 hover:!text-red-500"
                         >
                           <TrashIcon title="删除" className="h-4 w-4" />
-                        </button>
+                        </Button>
                       )}
                     </div>
                   </li>

@@ -21,7 +21,12 @@ import {
   unfavoriteWord,
 } from "@/lib/review/favorite";
 import { Button } from "@/components/ui/button";
-import { PlusIcon, VolumeIcon } from "@/components/ui/icons";
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  PlusIcon,
+  VolumeIcon,
+} from "@/components/ui/icons";
 import { usePronunciation } from "@/lib/audio/use-pronunciation";
 
 export default function WordPage({
@@ -35,7 +40,7 @@ export default function WordPage({
   const [entry, setEntry] = useState<DictEntry | null | undefined>(undefined);
   const [favorited, setFavorited] = useState(false);
   const [toggling, setToggling] = useState(false);
-  const { speak, speaking, supported: speechSupported } = usePronunciation();
+  const { speak, speaking } = usePronunciation();
 
   useEffect(() => {
     let cancelled = false;
@@ -82,7 +87,7 @@ export default function WordPage({
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-4 px-4 py-10">
         <Link href="/" className="text-sm text-blue-600 hover:underline">
-          ← 返回查词
+          <ChevronLeftIcon className="h-4 w-4 inline" /> 返回查词
         </Link>
         <p className="text-neutral-500">
           未找到单词 <span className="font-mono">{word}</span>
@@ -95,7 +100,7 @@ export default function WordPage({
     <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-6 px-4 py-8">
       <div className="flex items-center justify-between">
         <Link href="/" className="text-sm text-blue-600 hover:underline">
-          ← 返回查词
+          <ChevronLeftIcon className="h-4 w-4 inline" /> 返回查词
         </Link>
         <Button
           type="button"
@@ -129,18 +134,16 @@ export default function WordPage({
             <span className="font-mono text-lg text-neutral-500">
               {entry.phonetic}
             </span>
-            {speechSupported && (
-              <Button
-                type="button"
-                onClick={() => speak(entry.word)}
-                variant={speaking ? "primary" : "secondary"}
-                size="sm"
-                aria-label={`发音 ${entry.word}`}
-              >
-                <VolumeIcon title="发音" className={`h-4 w-4 ${speaking ? "animate-pulse text-blue-500" : ""}`} />
-                <span>发音</span>
-              </Button>
-            )}
+            <Button
+              type="button"
+              onClick={() => speak(entry.word)}
+              variant={speaking ? "primary" : "secondary"}
+              size="sm"
+              aria-label={`发音 ${entry.word}`}
+            >
+              <VolumeIcon title="发音" className={`h-4 w-4 ${speaking ? "animate-pulse text-blue-500" : ""}`} />
+              <span>发音</span>
+            </Button>
           </div>
         )}
       </section>
@@ -305,7 +308,7 @@ export default function WordPage({
               );
             }}
           >
-            问 AI 深入联想 →
+            问 AI 深入联想 <ChevronRightIcon className="h-4 w-4 inline" />
           </Button>
         </section>
       )}
@@ -332,7 +335,7 @@ export default function WordPage({
               );
             }}
           >
-            问 AI 生成联想记忆 →
+            问 AI 生成联想记忆 <ChevronRightIcon className="h-4 w-4 inline" />
           </Button>
         </section>
       )}
