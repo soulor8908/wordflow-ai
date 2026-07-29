@@ -248,7 +248,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const before = peekQuota(clientId);
+  const before = await peekQuota(clientId);
   if (before.remaining <= 0) {
     return NextResponse.json(
       {
@@ -265,7 +265,7 @@ export async function POST(request: NextRequest) {
   if (freeSession) {
     try {
       const stream = await callUpstreamStream(freeSession, systemPrompt, messages);
-      const quota: QuotaSnapshot = consumeQuota(clientId);
+      const quota: QuotaSnapshot = await consumeQuota(clientId);
       // 在流前面插入 meta 行（含 quota），用 TransformStream 拼接
       const encoder = new TextEncoder();
       const metaLine = encoder.encode(JSON.stringify({ type: "meta", quota }) + "\n");
@@ -293,7 +293,7 @@ export async function POST(request: NextRequest) {
 
   // 通道3：未配置免费通道 → 本地兜底引导文案（保证无 Key 也能响应）
   const fallbackText = buildFallbackReply(messages);
-  const quota: QuotaSnapshot = consumeQuota(clientId);
+  const quota: QuotaSnapshot = await consumeQuota(clientId);
   return NextResponse.json({
     ok: true,
     text: fallbackText,
@@ -316,6 +316,6 @@ export async function GET(request: NextRequest) {
     enabled: true,
     fallback: !isFreeChannelAvailable(),
     reason: isFreeChannelAvailable() ? undefined : "no-key",
-    quota: peekQuota(clientId),
+    quota: await peekQuota(clientId),
   });
 }
