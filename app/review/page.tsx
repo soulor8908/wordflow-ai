@@ -31,6 +31,7 @@ import { getItem, listItemsByPrefix } from "@/lib/storage/db";
 import type { WordCard } from "@/lib/review/fsrs-scheduler";
 import { cardKey } from "@/lib/review/favorite";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ChevronLeftIcon, TrophyIcon, VolumeIcon } from "@/components/ui/icons";
 import { usePronunciation } from "@/lib/audio/use-pronunciation";
 import { useSwipe } from "@/lib/review/use-swipe";
@@ -85,28 +86,30 @@ function ModeSwitcher({
   return (
     <div className="mb-3 flex shrink-0 items-center justify-between gap-2">
       <div className="flex rounded-lg border border-neutral-200 bg-neutral-100 p-0.5 text-xs dark:border-neutral-800 dark:bg-neutral-900">
-        <button
+        <Button
           type="button"
+          variant="plain"
           onClick={() => onChange("fsrs")}
-          className={`rounded-md px-3 py-1.5 font-medium transition-colors ${
+          className={`!rounded-md !px-3 !py-1.5 !font-medium transition-colors ${
             mode === "fsrs"
-              ? "bg-blue-600 text-white shadow-sm"
-              : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+              ? "!bg-blue-600 !text-white shadow-sm hover:!bg-blue-700 dark:hover:!bg-blue-700"
+              : "!text-neutral-500 hover:!text-neutral-700 dark:hover:!text-neutral-300"
           }`}
         >
           今日复习
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="plain"
           onClick={() => onChange("drill")}
-          className={`rounded-md px-3 py-1.5 font-medium transition-colors ${
+          className={`!rounded-md !px-3 !py-1.5 !font-medium transition-colors ${
             mode === "drill"
-              ? "bg-blue-600 text-white shadow-sm"
-              : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+              ? "!bg-blue-600 !text-white shadow-sm hover:!bg-blue-700 dark:hover:!bg-blue-700"
+              : "!text-neutral-500 hover:!text-neutral-700 dark:hover:!text-neutral-300"
           }`}
         >
           刷题模式
-        </button>
+        </Button>
       </div>
       <Link href="/" className="text-xs text-neutral-400 hover:underline">
         退出
@@ -792,7 +795,7 @@ function DrillMode() {
           <p className="text-sm text-red-500">{loadError}</p>
         )}
         <label className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-400">
-          <input
+          <Input
             type="checkbox"
             checked={filterMastered}
             onChange={(e) => setFilterMastered(e.target.checked)}

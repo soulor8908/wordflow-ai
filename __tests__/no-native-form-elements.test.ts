@@ -8,27 +8,36 @@
  */
 import { describe, test, expect } from "vitest";
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
-import { join, extname } from "node:path";
+import { join, extname, sep } from "node:path";
 
 const ROOTS = ["components", "app"];
 const EXCLUDE_DIRS = ["components/ui", "node_modules", ".next"];
+// 用 \b（词边界）而非 [\s>]：前者能命中行尾多行 JSX（如单独一行的 `<button`），
+// 同时避免误匹配 `<buttons>` 这类自定义元素；消除"假绿"。
 const NATIVE_PATTERNS = [
-  /<button[\s>]/,
-  /<input[\s>]/,
-  /<select[\s>]/,
-  /<textarea[\s>]/,
+  /<button\b/,
+  /<input\b/,
+  /<select\b/,
+  /<textarea\b/,
 ];
+
+/** 将路径分隔符归一化为 `/`，使排除规则在 Windows（\\）与 POSIX（/）下行为一致 */
+function toPosix(p: string): string {
+  return p.split(sep).join("/");
+}
 
 function collectTsxFiles(dir: string, base: string): string[] {
   if (!existsSync(dir)) return [];
   const files: string[] = [];
   for (const entry of readdirSync(dir)) {
     const fullPath = join(dir, entry);
-    const relPath = join(base, entry);
+    const relPath = toPosix(join(base, entry));
     const stat = statSync(fullPath);
     if (stat.isDirectory()) {
-      // 排除 ui 组件目录（包装原生元素的地方）
-      if (EXCLUDE_DIRS.some((ex) => relPath.startsWith(ex))) continue;
+      // 排除 ui 组件目录（包装原生元素的地方）。
+      // 用 `=== ex || startsWith(ex + "/")` 精确匹配目录边界，
+      // 避免 `components/ui-foo` 被误排除（假绿）。
+      if (EXCLUDE_DIRS.some((ex) => relPath === ex || relPath.startsWith(ex + "/"))) continue;
       files.push(...collectTsxFiles(fullPath, relPath));
     } else if (extname(entry) === ".tsx") {
       files.push(fullPath);

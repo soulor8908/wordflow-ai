@@ -46,6 +46,7 @@ import {
 } from "@/lib/ai/quick-inputs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   ChatIcon,
   CloseIcon,
@@ -1090,12 +1091,11 @@ export default function AiAssistant() {
                       placeholder="标签名（如：讲解词根）"
                       className="text-sm"
                     />
-                    <textarea
+                    <Textarea
                       value={editPrompt}
                       onChange={(e) => setEditPrompt(e.target.value)}
                       placeholder="注入到输入框的内容…"
                       rows={2}
-                      className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
                     />
                     <div className="flex gap-2">
                       <Button

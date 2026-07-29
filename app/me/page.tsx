@@ -724,7 +724,7 @@ function CloudSyncSection() {
           >
             {importing ? "导入中…" : "导入恢复"}
           </Button>
-          <input
+          <Input
             ref={fileInputRef}
             type="file"
             accept="application/json,.json"
