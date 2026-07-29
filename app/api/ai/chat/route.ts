@@ -15,6 +15,7 @@ import {
   generateWithCloudflareAI,
   isCloudflareAvailable,
 } from "@/lib/ai/cloudflare-ai";
+import { buildFallbackReply } from "@/lib/ai/fallback-reply";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -181,15 +182,15 @@ export async function POST(request: NextRequest) {
     const quota: QuotaSnapshot = consumeQuota(clientId);
     return NextResponse.json({ ok: true, text, quota });
   } catch {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "local",
-        message: "AI 暂不可用，请稍后再试",
-        quota: before,
-      },
-      { status: 503 }
-    );
+    // 通道3不可用（本地 dev / 未绑定 AI）→ 回退本地模拟，保证试用用户能体验聊天
+    const fallbackText = buildFallbackReply(messages);
+    const quota: QuotaSnapshot = consumeQuota(clientId);
+    return NextResponse.json({
+      ok: true,
+      text: fallbackText,
+      quota,
+      fallback: true,
+    });
   }
 }
 
@@ -204,11 +205,14 @@ export async function GET(request: NextRequest) {
   }
   const diag = await diagnoseFreeChannel();
   if (!diag.available) {
+    // 即使无上游通道，POST 也会走 fallback 本地兜底，所以仍标记 enabled=true
+    // 让前端允许试用用户发送消息（fallback 模式下回复引导文案）
     return NextResponse.json({
       ok: true,
-      enabled: false,
+      enabled: true,
+      fallback: true,
       reason: diag.reason ?? "no-channel",
-      quota: { used: 0, total: 0, remaining: 0 },
+      quota: peekQuota(clientId),
     });
   }
   return NextResponse.json({
