@@ -444,7 +444,7 @@ function FsrsReview() {
                 {entry.phonetic}
               </span>
             )}
-            <span className="text-xs text-neutral-400">
+            <span className="text-xs text-neutral-600">
               点击 / 空格 翻面 · ←/→ 或左右滑切换
             </span>
           </>
@@ -957,7 +957,7 @@ function DrillMode() {
                 {entry.phonetic}
               </span>
             )}
-            <span className="text-xs text-neutral-400">
+            <span className="text-xs text-neutral-600">
               点击 / 空格 翻面 · ←/→ 或左右滑切换
             </span>
           </>

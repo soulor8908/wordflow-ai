@@ -1089,12 +1089,14 @@ export default function AiAssistant() {
                       value={editLabel}
                       onChange={(e) => setEditLabel(e.target.value)}
                       placeholder="标签名（如：讲解词根）"
+                      aria-label="快捷输入标签名"
                       className="text-sm"
                     />
                     <Textarea
                       value={editPrompt}
                       onChange={(e) => setEditPrompt(e.target.value)}
                       placeholder="注入到输入框的内容…"
+                      aria-label="快捷输入提示词内容"
                       rows={2}
                     />
                     <div className="flex gap-2">

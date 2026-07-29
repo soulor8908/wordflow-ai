@@ -137,7 +137,7 @@ export default function OnboardingDialog() {
           >
             稍后再选
           </Button>
-          <span className="text-[11px] text-neutral-400">
+          <span className="text-[11px] text-neutral-600">
             选完即可开始学习
           </span>
         </footer>

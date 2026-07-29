@@ -445,27 +445,29 @@ function AiConfigSection({
 
           {/* API Key */}
           <div>
-            <label className="mb-1 block text-xs text-neutral-500">
+            <label htmlFor="ai-api-key" className="mb-1 block text-xs text-neutral-500">
               API Key
             </label>
             <Input
+              id="ai-api-key"
               type="password"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               placeholder="粘贴你的 API Key"
               autoComplete="off"
             />
-            <p className="mt-1 text-[10px] text-neutral-400">
+            <p className="mt-1 text-[10px] text-neutral-600">
               仅存储于本地浏览器，不上传服务器
             </p>
           </div>
 
           {/* baseURL（custom 必填，其他可改） */}
           <div>
-            <label className="mb-1 block text-xs text-neutral-500">
+            <label htmlFor="ai-base-url" className="mb-1 block text-xs text-neutral-500">
               API 地址
             </label>
             <Input
+              id="ai-base-url"
               type="url"
               value={baseURL}
               onChange={(e) => setBaseURL(e.target.value)}
@@ -476,10 +478,11 @@ function AiConfigSection({
 
           {/* model */}
           <div>
-            <label className="mb-1 block text-xs text-neutral-500">
+            <label htmlFor="ai-model" className="mb-1 block text-xs text-neutral-500">
               模型名
             </label>
             <Input
+              id="ai-model"
               type="text"
               value={model}
               onChange={(e) => setModel(e.target.value)}

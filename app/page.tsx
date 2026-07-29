@@ -248,7 +248,7 @@ export default function HomePage() {
       {!hasQuery && history.length > 0 && (
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-neutral-400">最近搜索</span>
+            <span className="text-xs text-neutral-600">最近搜索</span>
             <Button
               type="button"
               variant="link"
