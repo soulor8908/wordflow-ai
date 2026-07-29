@@ -222,7 +222,7 @@ fs.writeFileSync(
 );
 
 // 合并写入 dict 切片（DictEntry 格式，便于词条页展示富数据）
-const dictRoot = path.join(publicDir, "dict");
+const dictRoot = path.join(publicDir, "dict-data");
 for (const w of unique) {
   const key = w.word.toLowerCase().slice(0, 2);
   const letter = key[0];

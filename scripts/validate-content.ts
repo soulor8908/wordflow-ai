@@ -110,7 +110,7 @@ export function validateSlicedBook(
   return { errors, warnings };
 }
 
-/** 收集 public/dict 下所有切片中的词（用于 G1 校验） */
+/** 收集 public/dict-data 下所有切片中的词（用于 G1 校验） */
 export function collectDictWords(dictDir: string): Set<string> {
   const words = new Set<string>();
   if (!existsSync(dictDir)) return words;
@@ -154,7 +154,7 @@ function collectSlicedBookWords(bookDir: string): Set<string> {
 
 export function validateContent(publicDir: string): ValidateContentResult {
   const booksDir = join(publicDir, "book-data");
-  const dictDir = join(publicDir, "dict");
+  const dictDir = join(publicDir, "dict-data");
   const errors: string[] = [];
   let total = 0;
   let passed = 0;

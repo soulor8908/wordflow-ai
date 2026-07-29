@@ -14,7 +14,7 @@ import { join } from "node:path";
 const WORKSPACE = "/workspace";
 const MISSING_WORDS_FILE = join(WORKSPACE, "tmp-missing-words.txt");
 const PUBLIC_DIR = join(WORKSPACE, "public");
-const DICT_DIR = join(PUBLIC_DIR, "dict");
+const DICT_DIR = join(PUBLIC_DIR, "dict-data");
 const SEARCH_INDEX_FILE = join(PUBLIC_DIR, "search-index.json");
 
 /**

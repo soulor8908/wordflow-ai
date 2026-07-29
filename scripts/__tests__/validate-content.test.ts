@@ -14,7 +14,7 @@ const TMP = join(tmpdir(), `wf-content-test-${Date.now()}`);
 function setupFixture(): string {
   rmSync(TMP, { recursive: true, force: true });
   mkdirSync(join(TMP, "book-data"), { recursive: true });
-  mkdirSync(join(TMP, "dict", "a"), { recursive: true });
+  mkdirSync(join(TMP, "dict-data", "a"), { recursive: true });
   const book: WordBook = {
     id: "test-book",
     name: "测试词书",
@@ -35,7 +35,7 @@ function setupFixture(): string {
     "utf8"
   );
   writeFileSync(
-    join(TMP, "dict", "a", "ab.json"),
+    join(TMP, "dict-data", "a", "ab.json"),
     JSON.stringify([{ word: "abandon" }, { word: "ability" }]),
     "utf8"
   );
@@ -100,14 +100,14 @@ describe("validateBook", () => {
 });
 
 describe("collectDictWords", () => {
-  test("收集 dict 目录下所有切片中的词", () => {
+  test("收集 dict-data 目录下所有切片中的词", () => {
     const dir = setupFixture();
-    const words = collectDictWords(join(dir, "dict"));
+    const words = collectDictWords(join(dir, "dict-data"));
     expect(words.has("abandon")).toBe(true);
     expect(words.has("ability")).toBe(true);
   });
 
-  test("dict 目录不存在 → 返回空集合", () => {
+  test("dict-data 目录不存在 → 返回空集合", () => {
     const words = collectDictWords(join(TMP, "nonexistent"));
     expect(words.size).toBe(0);
   });

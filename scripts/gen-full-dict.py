@@ -120,7 +120,7 @@ def main():
     for k in groups:
         groups[k].sort(key=lambda x: x.get("frequency", 0), reverse=True)
 
-    dict_root = os.path.join(OUT_DIR, "dict")
+    dict_root = os.path.join(OUT_DIR, "dict-data")
     import glob
     for old in glob.glob(os.path.join(dict_root, "*", "*.json")):
         os.remove(old)

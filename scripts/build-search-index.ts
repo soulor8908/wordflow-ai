@@ -39,7 +39,7 @@ function listSliceFiles(dictRoot: string): string[] {
 
 function main() {
   const publicDir = resolve(process.argv[2] ?? "public");
-  const dictRoot = join(publicDir, "dict");
+  const dictRoot = join(publicDir, "dict-data");
   const files = listSliceFiles(dictRoot);
 
   if (files.length === 0) {

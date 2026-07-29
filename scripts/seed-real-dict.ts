@@ -811,7 +811,7 @@ function main(): void {
   for (const w of bookWords.keys()) prefixes.add(w.toLowerCase().slice(0, 2));
   for (const prefix of prefixes) {
     const letter = prefix[0];
-    const file = join(publicDir, "dict", letter, `${prefix}.json`);
+    const file = join(publicDir, "dict-data", letter, `${prefix}.json`);
     const existing = readExistingSlice(file);
     if (existing.length === 0) continue;
     if (!sliceMap.has(prefix)) sliceMap.set(prefix, new Map());
@@ -845,7 +845,7 @@ function main(): void {
 
   for (const [prefix, wordMap] of sliceMap) {
     const letter = prefix[0];
-    const dir = join(publicDir, "dict", letter);
+    const dir = join(publicDir, "dict-data", letter);
     const file = join(dir, `${prefix}.json`);
     mkdirSync(dir, { recursive: true });
 

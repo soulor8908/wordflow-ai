@@ -1,7 +1,7 @@
 /**
  * 内容来源新鲜度巡检（设计文档 §8.2 quality-gate: content:freshness 步骤 + §4.2 audit-source-freshness.ts）
  *
- * 检查 public/dict 下词典切片的数据新鲜度（按文件 mtime 与阈值对比）。
+ * 检查 public/dict-data 下词典切片的数据新鲜度（按文件 mtime 与阈值对比）。
  * MVP 阶段：词典为静态种子数据，freshness 巡检确认切片存在且非空；
  * M2 接入 ECDICT 上游后扩展为版本与同步状态检查。
  *
@@ -22,14 +22,14 @@ export function checkFreshness(
   publicDir: string,
   maxAgeDays = 365
 ): FreshnessResult {
-  const dictDir = join(publicDir, "dict");
+  const dictDir = join(publicDir, "dict-data");
   const errors: string[] = [];
   let total = 0;
   let stale = 0;
   let empty = 0;
 
   if (!existsSync(dictDir)) {
-    return { total: 0, stale: 0, empty: 0, errors: ["dict 目录不存在"] };
+    return { total: 0, stale: 0, empty: 0, errors: ["dict-data 目录不存在"] };
   }
 
   const threshold = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
