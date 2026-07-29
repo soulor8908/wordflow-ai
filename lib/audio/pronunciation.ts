@@ -1,8 +1,18 @@
 /**
- * 统一发音模块（设计文档 §3.3：Web Speech API 优先，有道词典音频兜底）
+ * 统一发音模块（移动端兼容版）
  *
- * 优先使用 Web Speech API（TTS），不可用或失败时 fallback 到有道词典音频。
- * 提供防抖、en-US 语音自动选择、取消等功能。仅在客户端运行。
+ * 架构（卡帕西视角：手势链必须同步，不可断）：
+ * - 移动端（iOS/Android）：HTMLAudioElement 同步 play() 为主路径
+ *   - iOS Safari 的 audio.play() 必须在 onClick 同步栈内，任何 await 后的调用都会被静默拒绝
+ *   - iOS 18 TTS 声音质量退化 + cancel/speak 竞态，移动端不值得用 TTS
+ *   - Android Chrome TTS 冷启动慢（1-3s）+ onend 不触发，体验差
+ * - 桌面端：Web Speech API 优先（体验好、离线、零成本），audio 兜底
+ *   - 桌面 sticky activation 允许 async 后 fallback audio.play()
+ * - 不在 speak 前无脑 cancel（iOS 竞态会静默丢弃新 utterance）
+ * - 预热：首次用户交互播静音解锁 iOS audio 通道
+ *
+ * 关键约束：播放触发（audio.play / speechSynthesis.speak）必须在 speak() 的
+ * 第一个 await 之前同步执行，保证 iOS Safari 手势链不断。
  */
 
 export interface PronunciationOptions {
@@ -13,7 +23,11 @@ export interface PronunciationOptions {
 
 const DEFAULT_RATE = 0.9;
 const DEFAULT_PITCH = 1.0;
-const DEBOUNCE_MS = 500;
+const DEBOUNCE_MS = 300; // 缩短到 300ms，避免用户快速点击无反馈
+const YOUDAO_TYPE = 2; // 美音（type=1 英音、type=2 美音）
+const TTS_TIMEOUT_MS = 5000; // TTS 兜底超时（单词很短，5s 足够）
+const SILENCE_WAV =
+  "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
 
 // --- 模块级状态 ---
 let lastSpokenWord = "";
@@ -21,6 +35,16 @@ let lastSpokenTime = 0;
 let cachedVoice: SpeechSynthesisVoice | null = null;
 let voicesReady = false;
 let currentAudio: HTMLAudioElement | null = null;
+let audioChannelUnlocked = false;
+let unlockInstalled = false;
+
+// --- 平台检测 ---
+
+/** 移动端检测：iOS 或 Android */
+function isMobile(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /iPad|iPhone|iPod|Android/i.test(navigator.userAgent);
+}
 
 // --- 支持检测 ---
 
@@ -42,12 +66,66 @@ export function isPronunciationSupported(): boolean {
   return isSpeechSupported() || isAudioSupported();
 }
 
-// --- en-US 语音选择 ---
+// --- 有道词典音频 ---
+
+function buildYoudaoUrl(word: string): string {
+  return `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word)}&type=${YOUDAO_TYPE}`;
+}
 
 /**
- * 从语音列表中选择最佳的 en-US 英语语音。
- * 优先级：Google > Microsoft > Natural > Samantha/Alex > 其他 en-US
+ * 用有道词典音频发音。
+ * 关键：audio.play() 在 Promise 执行器内同步触发，保持在用户手势栈内。
+ * 返回 Promise<boolean>：true 表示播放完成，false 表示失败。
  */
+export function speakWithAudio(word: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (!isAudioSupported()) {
+      resolve(false);
+      return;
+    }
+
+    // 取消之前的音频（pause 同步，不会触发 iOS speech 竞态）
+    if (currentAudio) {
+      try {
+        currentAudio.pause();
+        currentAudio.onended = null;
+        currentAudio.onerror = null;
+      } catch {
+        // 忽略
+      }
+      currentAudio = null;
+    }
+
+    try {
+      const audio = new Audio(buildYoudaoUrl(word));
+      audio.preload = "auto";
+      currentAudio = audio;
+
+      audio.onended = () => {
+        if (currentAudio === audio) currentAudio = null;
+        resolve(true);
+      };
+      audio.onerror = () => {
+        if (currentAudio === audio) currentAudio = null;
+        resolve(false);
+      };
+      // 同步触发 play（必须在用户手势栈内）
+      const p = audio.play();
+      if (p && typeof p.catch === "function") {
+        p.catch(() => {
+          if (currentAudio === audio) currentAudio = null;
+          resolve(false);
+        });
+      }
+    } catch {
+      currentAudio = null;
+      resolve(false);
+    }
+  });
+}
+
+// --- en-US 语音选择 ---
+
 function pickBestVoice(
   voices: SpeechSynthesisVoice[]
 ): SpeechSynthesisVoice | null {
@@ -64,10 +142,6 @@ function pickBestVoice(
   return enVoices[0];
 }
 
-/**
- * 加载语音列表。语音加载是异步的（onvoiceschanged 事件），需等待。
- * 某些浏览器不触发该事件，加 1s 超时兜底。
- */
 function loadVoices(): Promise<SpeechSynthesisVoice[]> {
   return new Promise((resolve) => {
     if (!isSpeechSupported()) {
@@ -90,7 +164,7 @@ function loadVoices(): Promise<SpeechSynthesisVoice[]> {
     };
     window.speechSynthesis.addEventListener("voiceschanged", handler);
 
-    // 超时兜底：某些浏览器不触发 voiceschanged
+    // 超时兜底：iOS 上 voiceschanged 经常不触发
     setTimeout(() => {
       if (settled) return;
       settled = true;
@@ -100,7 +174,6 @@ function loadVoices(): Promise<SpeechSynthesisVoice[]> {
   });
 }
 
-/** 获取选中的语音（带缓存，首次调用时异步加载） */
 async function getSelectedVoice(): Promise<SpeechSynthesisVoice | null> {
   if (voicesReady) return cachedVoice;
   if (!isSpeechSupported()) return null;
@@ -111,16 +184,20 @@ async function getSelectedVoice(): Promise<SpeechSynthesisVoice | null> {
   return cachedVoice;
 }
 
+/** 后台预热 voice 缓存（不阻塞调用方） */
+function warmUpVoices(): void {
+  if (voicesReady || !isSpeechSupported()) return;
+  void getSelectedVoice();
+}
+
 // --- TTS 发音 ---
 
 /**
  * 用 Web Speech API 发音。
- * 返回 Promise<boolean>：true 表示播放完成，false 表示失败/超时。
- *
- * 关键（移动端兼容）：必须在用户手势的同步调用栈内调用
- * `speechSynthesis.speak(utterance)`，否则 iOS Safari 会静默拒绝。
- * 因此**不**在这里 await getSelectedVoice()——voice 未就绪时跳过
- * voice 指定（浏览器按 lang 自动选择），保证 speak 同步触发。
+ * 关键：speechSynthesis.speak(utterance) 在 Promise 执行器内同步触发。
+ * 不在 speak 前无脑 cancel（iOS 竞态会静默丢弃新 utterance）。
+ * speak 后立即 resume()（iOS 防御 paused 状态）。
+ * 返回 Promise<boolean>：true=播放完成，false=失败。
  */
 function speakWithTTS(word: string, rate: number): Promise<boolean> {
   if (!isSpeechSupported()) {
@@ -132,18 +209,13 @@ function speakWithTTS(word: string, rate: number): Promise<boolean> {
 
   return new Promise<boolean>((resolve) => {
     let settled = false;
-    // Android WebView 上 onend 经常不触发，改为 150ms 后检查 speaking 状态：
-    // - speaking=true → TTS 已启动，视为成功（不等 onend）
-    // - speaking=false → TTS 未启动，立即 fallback 到 audio（仍在用户手势栈内）
+    // 兜底超时：Android Chrome onend 可能不触发，单词很短给 5s
+    // 超时视为成功（不 fallback，避免重复播放）
     const timer = setTimeout(() => {
       if (settled) return;
       settled = true;
-      try {
-        resolve(window.speechSynthesis.speaking);
-      } catch {
-        resolve(false);
-      }
-    }, 150);
+      resolve(true);
+    }, TTS_TIMEOUT_MS);
 
     try {
       const utterance = new SpeechSynthesisUtterance(word);
@@ -167,61 +239,18 @@ function speakWithTTS(word: string, rate: number): Promise<boolean> {
 
       // 同步调用：必须保持在用户手势栈内
       window.speechSynthesis.speak(utterance);
+      // iOS Safari 防御：speak 后立即 resume（幂等），防止 paused 状态
+      try {
+        window.speechSynthesis.resume();
+      } catch {
+        // 忽略
+      }
     } catch {
       if (!settled) {
         settled = true;
         clearTimeout(timer);
         resolve(false);
       }
-    }
-  });
-}
-
-// --- 有道词典音频 ---
-
-/**
- * 用有道词典音频发音（兜底）。
- * URL 格式：https://dict.youdao.com/dictvoice?audio={word}&type=2（type=2 美音）
- * 返回 Promise<boolean>：true 表示播放完成，false 表示失败。
- */
-export function speakWithAudio(word: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    if (!isAudioSupported()) {
-      resolve(false);
-      return;
-    }
-
-    // 取消之前的音频
-    if (currentAudio) {
-      try {
-        currentAudio.pause();
-      } catch {
-        // 忽略
-      }
-      currentAudio = null;
-    }
-
-    try {
-      const audio = new Audio(
-        `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word)}&type=2`
-      );
-      currentAudio = audio;
-
-      audio.onended = () => {
-        if (currentAudio === audio) currentAudio = null;
-        resolve(true);
-      };
-      audio.onerror = () => {
-        if (currentAudio === audio) currentAudio = null;
-        resolve(false);
-      };
-      audio.play().catch(() => {
-        if (currentAudio === audio) currentAudio = null;
-        resolve(false);
-      });
-    } catch {
-      currentAudio = null;
-      resolve(false);
     }
   });
 }
@@ -248,16 +277,60 @@ export function cancelSpeech(): void {
   }
 }
 
+// --- 预热 audio 通道（iOS 必需）---
+
+/**
+ * 安装首次交互解锁 audio 通道的监听器。
+ * iOS Safari 要求 audio.play() 在用户手势内，但首次播放静音音频可"解锁"通道，
+ * 之后的 play() 更可靠（仍需手势，但不会被完全拒绝）。
+ * 幂等：多次调用只安装一次监听。
+ */
+export function warmUpAudioChannel(): void {
+  if (!isAudioSupported() || typeof document === "undefined") return;
+  if (unlockInstalled) return;
+  unlockInstalled = true;
+
+  const unlock = () => {
+    if (audioChannelUnlocked) return;
+    try {
+      const a = new Audio(SILENCE_WAV);
+      const p = a.play();
+      if (p && typeof p.then === "function") {
+        p.then(() => {
+          a.pause();
+          a.currentTime = 0;
+          audioChannelUnlocked = true;
+        }).catch(() => {
+          // 解锁失败，后续真实播放时再尝试
+        });
+      } else {
+        audioChannelUnlocked = true;
+      }
+    } catch {
+      // 忽略
+    }
+    document.removeEventListener("click", unlock);
+    document.removeEventListener("touchend", unlock);
+  };
+  document.addEventListener("click", unlock);
+  document.addEventListener("touchend", unlock);
+}
+
 // --- 统一接口 ---
 
 /**
  * 统一发音接口。
- * 优先用 Web Speech API，不可用或失败时 fallback 到有道音频。
- * 防抖：同一单词 500ms 内不重复播放（可用 force 跳过）。
  *
- * 移动端兼容：TTS 的 speak(utterance) 必须在用户手势同步栈内触发，
- * 因此本函数内**不** await 任何异步前置（如 voice 加载）。
- * voice 在后台预热（warmUpVoices），首次播放未就绪时浏览器按 lang 兜底。
+ * 关键约束（移动端兼容）：
+ * 播放触发（audio.play / speechSynthesis.speak）在第一个 await 之前同步执行，
+ * 保证 iOS Safari 手势链不断。
+ *
+ * 路径选择：
+ * - 移动端（iOS/Android）：audio 主路径（TTS 在移动端不可靠）
+ * - 桌面端：TTS 优先（体验好），失败 fallback audio（sticky activation 允许 async 后播放）
+ * - preferAudio=true：任何平台都走 audio
+ *
+ * 防抖：同一单词 300ms 内不重复播放（可用 force 跳过）。
  */
 export async function speak(
   word: string,
@@ -269,7 +342,7 @@ export async function speak(
   const force = options?.force ?? false;
   const preferAudio = options?.preferAudio ?? false;
 
-  // 防抖：同一单词 500ms 内不重复播放
+  // 防抖：同一单词 300ms 内不重复播放
   const now = Date.now();
   if (!force && word === lastSpokenWord && now - lastSpokenTime < DEBOUNCE_MS) {
     return;
@@ -277,22 +350,18 @@ export async function speak(
   lastSpokenWord = word;
   lastSpokenTime = now;
 
-  // 取消正在进行的发音
-  cancelSpeech();
-
-  // 后台预热 voice（不阻塞，下次播放时缓存可能已就绪）
+  // 后台预热 voice（桌面端用，不阻塞）
   warmUpVoices();
 
-  if (preferAudio) {
-    // 优先有道音频，失败 fallback 到 TTS
-    const ok = await speakWithAudio(word);
-    if (!ok && isSpeechSupported()) {
-      await speakWithTTS(word, rate);
-    }
+  // 移动端或显式 preferAudio：audio 主路径
+  // 不走 TTS：iOS 18 声音退化 + cancel 竞态 + Android onend 不触发 + 冷启动慢
+  if (isMobile() || preferAudio) {
+    await speakWithAudio(word);
     return;
   }
 
-  // 默认：优先 TTS，失败 fallback 到有道音频
+  // 桌面端：TTS 优先，失败 fallback audio
+  // 桌面 sticky activation 允许 async 后 audio.play()
   if (isSpeechSupported()) {
     const ok = await speakWithTTS(word, rate);
     if (ok) return;
@@ -300,11 +369,4 @@ export async function speak(
 
   // TTS 不可用或失败，用有道音频
   await speakWithAudio(word);
-}
-
-/** 后台预热 voice 缓存（不阻塞调用方） */
-function warmUpVoices(): void {
-  if (voicesReady || !isSpeechSupported()) return;
-  // 触发异步加载，结果写入模块级缓存
-  void getSelectedVoice();
 }

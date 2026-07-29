@@ -17,6 +17,7 @@ import {
   speak as speakPronunciation,
   cancelSpeech,
   isPronunciationSupported,
+  warmUpAudioChannel,
   type PronunciationOptions,
 } from "@/lib/audio/pronunciation";
 
@@ -39,6 +40,8 @@ export function usePronunciation(): UsePronunciationResult {
     startTransition(() => {
       setSupported(isPronunciationSupported());
     });
+    // 预热 audio 通道（iOS Safari 必需：首次交互播静音解锁）
+    warmUpAudioChannel();
   }, [startTransition]);
 
   // 卸载时清理：取消发音
