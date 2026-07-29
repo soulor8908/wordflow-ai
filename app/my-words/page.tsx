@@ -26,7 +26,27 @@ export default function MyWordsPage() {
   const [words, setWords] = useState<UserWordEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
-  async function refresh() {
+  // 初始加载：loading 初始为 true，仅在 async 回调中 setState（避免 effect 内同步 setState）
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await listUserWords();
+        if (!cancelled) setWords(list);
+      } catch {
+        if (!cancelled) setWords([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function handleDelete(word: string) {
+    await deleteUserWord(word);
+    // 刷新列表（事件处理器中 setState 不受 effect 规则限制）
     setLoading(true);
     try {
       const list = await listUserWords();
@@ -36,15 +56,6 @@ export default function MyWordsPage() {
     } finally {
       setLoading(false);
     }
-  }
-
-  useEffect(() => {
-    refresh();
-  }, []);
-
-  async function handleDelete(word: string) {
-    await deleteUserWord(word);
-    refresh();
   }
 
   return (

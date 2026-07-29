@@ -76,11 +76,6 @@ function buildTtsProxyUrl(word: string): string {
   return `/api/tts/${encodeURIComponent(word)}`;
 }
 
-/** 兼容：保留旧函数名但指向代理 URL */
-function buildYoudaoUrl(word: string): string {
-  return buildTtsProxyUrl(word);
-}
-
 /**
  * 用 TTS 代理音频发音。
  * 关键：audio.play() 在 Promise 执行器内同步触发，保持在用户手势栈内。

@@ -122,19 +122,13 @@ export default function HomePage() {
   // AI 搜索：内置词典无结果时自动调用（debounce 等搜索稳定后触发）
   useEffect(() => {
     const trimmed = query.trim();
-    if (!trimmed || trimmed.length < 2 || !indexReady) {
-      setAiEntry(null);
-      setAiError(null);
-      setAiSearching(false);
-      aiQueryRef.current = "";
-      return;
-    }
-
-    // 内置词典有结果 → 清除 AI 状态
-    if (results.length > 0 || loading) {
-      setAiEntry(null);
-      setAiError(null);
-      setAiSearching(false);
+    if (!trimmed || trimmed.length < 2 || !indexReady || results.length > 0 || loading) {
+      // 清理 AI 状态：延迟到微任务，避免 effect 内同步 setState 触发级联渲染
+      queueMicrotask(() => {
+        setAiEntry(null);
+        setAiError(null);
+        setAiSearching(false);
+      });
       aiQueryRef.current = "";
       return;
     }

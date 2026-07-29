@@ -8,7 +8,7 @@
  * - 支持按字母快速筛选
  */
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useSearch } from "@/lib/search/use-search";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
