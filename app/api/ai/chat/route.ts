@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateText } from "ai";
 import {
-  createAiProvider,
   classifyAiError,
   validateBaseUrl,
   getProviderConfig,
+  resolveModel,
   type AiSessionConfig,
 } from "@/lib/ai/provider";
 import { buildSystemPrompt } from "@/lib/ai/prompts";
@@ -25,19 +24,23 @@ interface ChatRequestBody extends Partial<AiSessionConfig> {
   clientId?: string;
 }
 
+/** AI 请求超时（ms） */
+const CHAT_TIMEOUT_MS = 30_000;
+
+function fetchWithTimeout(input: string, init: RequestInit): Promise<Response> {
+  const signal =
+    typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
+      ? AbortSignal.timeout(CHAT_TIMEOUT_MS)
+      : undefined;
+  return fetch(input, { ...init, signal });
+}
+
 /**
  * 从环境变量构造免费通道的 session。
  *
  * 默认走 Agnes（agnes-2.0-flash），无需额外配置即开箱可用——
  * 只需在部署环境（Cloudflare Pages Variables 或本地 .dev.vars）配置：
  *   FREE_AI_API_KEY=sk-xxx
- *
- * 可选覆盖：
- *   FREE_AI_PROVIDER —— 默认 "agnes"
- *   FREE_AI_BASE_URL —— 默认 agnes 官方地址
- *   FREE_AI_MODEL    —— 默认 agnes-2.0-flash
- *
- * 未配置 FREE_AI_API_KEY 时返回 null，由 fallback 本地兜底。
  */
 function getFreeSession(): AiSessionConfig | null {
   const apiKey = process.env.FREE_AI_API_KEY;
@@ -51,9 +54,135 @@ function getFreeSession(): AiSessionConfig | null {
   };
 }
 
-/** 免费通道是否可用（配了 FREE_AI_API_KEY 即可用，未配则走 fallback） */
 function isFreeChannelAvailable(): boolean {
   return getFreeSession() !== null;
+}
+
+/**
+ * 调用上游 OpenAI 兼容 API（原始 fetch，绕过 AI SDK 的黑盒解析）。
+ *
+ * 不用 @ai-sdk/openai 的 generateText，因为它对响应格式要求严格，
+ * 上游返回非标准 JSON（如 HTML 错误页、空响应、SSE 流）时会抛
+ * "Invalid JSON response"，掩盖真实错误。
+ *
+ * 直接 fetch + 手动解析，能捕获 HTTP 状态码、Content-Type 和响应体，
+ * 在失败时返回可操作的错误信息。
+ *
+ * @returns { text: string } 或抛出带上下文的 Error
+ */
+async function callUpstream(
+  session: AiSessionConfig,
+  systemPrompt: string,
+  messages: ChatMessage[]
+): Promise<string> {
+  const cfg = getProviderConfig(session.provider);
+  const finalBaseURL = (session.baseURL || cfg.baseURL).trim();
+  const finalModel = resolveModel(session);
+
+  if (!finalBaseURL) {
+    throw new Error("baseURL 为空，请检查 Provider 配置");
+  }
+
+  // SSRF 防护
+  validateBaseUrl(finalBaseURL);
+
+  const endpoint = finalBaseURL.replace(/\/+$/, "") + "/chat/completions";
+
+  const res = await fetchWithTimeout(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: finalModel,
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...messages.map((m) => ({ role: m.role, content: m.content })),
+      ],
+      stream: false,
+      temperature: 0.7,
+      max_tokens: 1024,
+    }),
+  });
+
+  const contentType = res.headers.get("content-type") ?? "";
+  const bodyText = await res.text().catch(() => "");
+  const bodySnippet = bodyText.slice(0, 300);
+
+  // 非 JSON 响应（HTML 错误页 / 网关错误 / 空响应）
+  if (!contentType.includes("application/json")) {
+    const err = new Error(
+      `HTTP ${res.status} ${contentType || "非 JSON"}: ${bodySnippet.slice(0, 120)}`
+    );
+    (err as Error & { httpStatus?: number }).httpStatus = res.status;
+    throw err;
+  }
+
+  // 解析 JSON
+  let json: Record<string, unknown>;
+  try {
+    json = JSON.parse(bodyText);
+  } catch {
+    const err = new Error(`JSON 解析失败: ${bodySnippet.slice(0, 120)}`);
+    (err as Error & { httpStatus?: number }).httpStatus = res.status;
+    throw err;
+  }
+
+  // 检查上游错误
+  if (!res.ok) {
+    const apiError = json.error as Record<string, unknown> | undefined;
+    const errMsg =
+      (typeof apiError?.message === "string" && apiError.message) ||
+      (typeof json.message === "string" && json.message) ||
+      `HTTP ${res.status}`;
+    const err = new Error(`HTTP ${res.status}: ${errMsg}`);
+    (err as Error & { httpStatus?: number }).httpStatus = res.status;
+    throw err;
+  }
+
+  // 提取回复文本（兼容 choices[0].message.content 和 data[0].content）
+  const choices = json.choices as Array<{ message?: { content?: string } }> | undefined;
+  if (choices && choices.length > 0 && choices[0].message?.content) {
+    return choices[0].message.content;
+  }
+
+  // 部分兼容服务用 data 数组
+  const data = json.data as Array<{ content?: string }> | undefined;
+  if (data && data.length > 0 && data[0].content) {
+    return data[0].content;
+  }
+
+  // 200 但结构异常
+  throw new Error(`上游返回异常结构: ${bodySnippet.slice(0, 120)}`);
+}
+
+/** 构造错误响应 */
+function errorResponse(
+  errorClass: ReturnType<typeof classifyAiError>,
+  rawError: string,
+  context: "byok" | "free",
+  quota?: QuotaSnapshot
+) {
+  const message =
+    errorClass === "upstream-auth"
+      ? context === "byok"
+        ? "API Key 无效或权限不足，请检查 Key 和 Provider 配置"
+        : "免费通道密钥失效，可配置自己的 API Key"
+      : errorClass === "local"
+        ? `本地配置错误（${rawError.slice(0, 120)}）`
+        : `AI 服务暂时不可用，请稍后重试（${rawError.slice(0, 100)}）`;
+  const status = errorClass === "upstream-auth" ? 401 : 500;
+  return NextResponse.json(
+    {
+      ok: false,
+      error: errorClass,
+      message,
+      rawError: rawError.slice(0, 200),
+      ...(quota ? { quota } : {}),
+    },
+    { status }
+  );
 }
 
 export async function POST(request: NextRequest) {
@@ -76,23 +205,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const systemPrompt = buildSystemPrompt("word_explain_chat");
+
   // ───────── 通道1：BYOK（用户自带 Key，无限制） ─────────
   if (provider && apiKey) {
     const session: AiSessionConfig = { provider, apiKey, baseURL, model };
     try {
-      // SSRF 防护：校验 baseURL（仅对 custom provider 和用户覆盖的 baseURL 生效）
-      const cfg = getProviderConfig(provider);
-      const finalBaseURL = baseURL || cfg.baseURL;
-      if (finalBaseURL) validateBaseUrl(finalBaseURL);
-
-      const { model: aiModel } = createAiProvider(session);
-      const systemPrompt = buildSystemPrompt("word_explain_chat");
-      const result = await generateText({
-        model: aiModel,
-        system: systemPrompt,
-        messages: messages.map((m) => ({ role: m.role, content: m.content })),
-      });
-      return NextResponse.json({ ok: true, text: result.text });
+      const text = await callUpstream(session, systemPrompt, messages);
+      return NextResponse.json({ ok: true, text });
     } catch (err) {
       const errorClass = classifyAiError(err);
       const rawError =
@@ -101,22 +221,7 @@ export async function POST(request: NextRequest) {
           : typeof err === "string"
             ? err
             : JSON.stringify(err);
-      const message =
-        errorClass === "upstream-auth"
-          ? "API Key 无效或权限不足，请检查 Key 和 Provider 配置"
-          : errorClass === "upstream-other"
-            ? `上游服务暂时不可用，请稍后重试（${rawError.slice(0, 120)}）`
-            : `本地配置错误，请检查 baseURL 和 model（${rawError.slice(0, 120)}）`;
-      const status = errorClass === "upstream-auth" ? 401 : 500;
-      return NextResponse.json(
-        {
-          ok: false,
-          error: errorClass,
-          message,
-          rawError: rawError.slice(0, 200),
-        },
-        { status }
-      );
+      return errorResponse(errorClass, rawError, "byok");
     }
   }
 
@@ -145,24 +250,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const systemPrompt = buildSystemPrompt("word_explain_chat");
-  const mappedMessages = messages.map((m) => ({
-    role: m.role,
-    content: m.content,
-  }));
-
-  // 通道2：FREE_AI_API_KEY（环境变量配的第三方 Key，默认 agnes）
   const freeSession = getFreeSession();
   if (freeSession) {
     try {
-      const { model: aiModel } = createAiProvider(freeSession);
-      const result = await generateText({
-        model: aiModel,
-        system: systemPrompt,
-        messages: mappedMessages,
-      });
+      const text = await callUpstream(freeSession, systemPrompt, messages);
       const quota: QuotaSnapshot = consumeQuota(clientId);
-      return NextResponse.json({ ok: true, text: result.text, quota });
+      return NextResponse.json({ ok: true, text, quota });
     } catch (err) {
       const errorClass = classifyAiError(err);
       const rawError =
@@ -171,20 +264,7 @@ export async function POST(request: NextRequest) {
           : typeof err === "string"
             ? err
             : JSON.stringify(err);
-      const message =
-        errorClass === "upstream-auth"
-          ? "免费通道密钥失效，可配置自己的 API Key"
-          : `AI 服务暂时不可用，请稍后重试（${rawError.slice(0, 100)}）`;
-      return NextResponse.json(
-        {
-          ok: false,
-          error: errorClass,
-          message,
-          rawError: rawError.slice(0, 200),
-          quota: before,
-        },
-        { status: errorClass === "upstream-auth" ? 401 : 500 }
-      );
+      return errorResponse(errorClass, rawError, "free", before);
     }
   }
 
@@ -208,7 +288,6 @@ export async function GET(request: NextRequest) {
       { status: 400 }
     );
   }
-  // 即使未配置 FREE_AI_API_KEY，POST 也会走 fallback 本地兜底，所以仍标记 enabled=true
   return NextResponse.json({
     ok: true,
     enabled: true,
