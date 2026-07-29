@@ -103,62 +103,65 @@ async function callUpstreamStream(
     throw err;
   }
 
+  // 缓冲式读取：完整读完上游 SSE，解析所有 delta，再一次性返回 stream。
+  // 这样所有上游错误（网络中断/超时/解析失败）在此函数内同步抛出，
+  // 由 route.ts 的 catch 捕获并降级到 fallback reply，避免流式异步错误
+  // 导致 Cloudflare Worker 1101 崩溃。
   const upstreamReader = res.body.getReader();
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
   let buffer = "";
-  let closed = false;
+  const deltas: string[] = [];
+  let sawDone = false;
 
-  return new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      if (closed) return;
-      try {
-        const { done, value } = await upstreamReader.read();
-        if (done) {
-          controller.close();
-          closed = true;
-          return;
+  // 完整读取上游 SSE 流
+  try {
+    while (true) {
+      const { done, value } = await upstreamReader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith("data:")) continue;
+        const data = trimmed.slice(5).trim();
+        if (data === "[DONE]") {
+          sawDone = true;
+          continue;
         }
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed || !trimmed.startsWith("data:")) continue;
-          const data = trimmed.slice(5).trim();
-          if (data === "[DONE]") {
-            controller.enqueue(
-              encoder.encode(JSON.stringify({ type: "done" }) + "\n")
-            );
-            controller.close();
-            closed = true;
-            return;
-          }
-          try {
-            const parsed = JSON.parse(data);
-            const delta = parsed.choices?.[0]?.delta?.content;
-            if (delta) {
-              controller.enqueue(
-                encoder.encode(
-                  JSON.stringify({ type: "delta", content: delta }) + "\n"
-                )
-              );
-            }
-          } catch {
-            // 跳过无法解析的行（如上游心跳/注释）
-          }
+        try {
+          const parsed = JSON.parse(data);
+          const delta = parsed.choices?.[0]?.delta?.content;
+          if (delta) deltas.push(delta);
+        } catch {
+          // 跳过无法解析的行（如上游心跳/注释）
         }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "流式读取失败";
-        controller.enqueue(
-          encoder.encode(JSON.stringify({ type: "error", message: msg }) + "\n")
-        );
-        controller.close();
-        closed = true;
       }
-    },
-    cancel() {
-      upstreamReader.cancel().catch(() => {});
+    }
+  } catch (err) {
+    // 上游读取失败（网络中断/超时）→ 抛错让 route catch 降级
+    const msg = err instanceof Error ? err.message : "流式读取失败";
+    throw new Error(`上游流式读取失败: ${msg}`);
+  }
+
+  // 如果没有任何 delta 且没收到 [DONE]，视为上游异常
+  if (deltas.length === 0 && !sawDone) {
+    throw new Error("上游返回空响应（无 delta 且无 [DONE]）");
+  }
+
+  // 返回一个一次性 emit 所有 delta + done 的 stream（客户端仍按流式协议解析）
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const delta of deltas) {
+        controller.enqueue(
+          encoder.encode(JSON.stringify({ type: "delta", content: delta }) + "\n")
+        );
+      }
+      controller.enqueue(
+        encoder.encode(JSON.stringify({ type: "done" }) + "\n")
+      );
+      controller.close();
     },
   });
 }
