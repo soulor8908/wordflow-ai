@@ -267,12 +267,17 @@ export async function POST(request: NextRequest) {
       const stream = await callUpstreamStream(freeSession, systemPrompt, messages);
       const quota: QuotaSnapshot = await consumeQuota(clientId);
       // 在流前面插入 meta 行（含 quota），用 TransformStream 拼接
+      // 关键：writer 写入后必须 releaseLock，否则 pipeTo 会因锁冲突静默失败
       const encoder = new TextEncoder();
       const metaLine = encoder.encode(JSON.stringify({ type: "meta", quota }) + "\n");
       const { readable, writable } = new TransformStream();
       const writer = writable.getWriter();
-      writer.write(metaLine);
-      stream.pipeTo(writable).catch(() => {});
+      await writer.write(metaLine);
+      writer.releaseLock();
+      stream.pipeTo(writable).catch((err) => {
+        // 上游流错误时确保 readable 正常关闭，避免客户端挂起
+        console.error("[ai/chat] stream pipeTo failed:", err);
+      });
       return new Response(readable, {
         headers: {
           "Content-Type": "application/x-ndjson; charset=utf-8",
