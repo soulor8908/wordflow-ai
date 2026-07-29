@@ -19,6 +19,7 @@
     "quality-gate": "tsx scripts/quality-gate.ts",
     "build:cf": "opennextjs-cloudflare build",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "deploy:pages": "bash scripts/deploy-pages.sh",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "prepare": "husky",
     "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",

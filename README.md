@@ -8,16 +8,16 @@
 - **目标用户不是从零开始**：通过刷题模式长按"认识"快速标记已会词，集中精力学不会的
 - **本地优先 + 离线可用**：词典数据按需懒加载，PWA 装机后断网仍可复习
 - **FSRS 间隔重复算法**：开源版 SuperMemo，比 Anki 默认 SM-2 更精准
-- **AI 助手**：开箱即用的免费通道（Cloudflare Workers AI），支持 BYOK 自带 Key
+- **AI 助手**：开箱即用的免费通道（环境变量配置 Agnes/GLM/DeepSeek 等），支持 BYOK 自带 Key
 - **常错词自动统计**：复习中标记"忘记/模糊"自动累计，统计页一目了然
 
 ## 技术栈
 
 - **框架**：Next.js 16（App Router）+ React 19
-- **运行时**：Cloudflare Workers（通过 `@opennextjs/cloudflare`）
+- **运行时**：Cloudflare Pages（通过 `@opennextjs/cloudflare` 构建 + `wrangler pages deploy`）
 - **存储**：IndexedDB（Dexie，本地优先）+ Cloudflare KV（同步层，预留）
 - **算法**：ts-fsrs（FSRS v5）
-- **AI**：Vercel AI SDK + Cloudflare Workers AI（默认免费通道）
+- **AI**：Vercel AI SDK + 兼容 OpenAI 格式的第三方服务（默认 Agnes，环境变量配置）
 - **样式**：Tailwind CSS v4
 - **测试**：Vitest + Testing Library
 
@@ -36,9 +36,9 @@ pnpm lint
 pnpm test
 ```
 
-> 本地 `pnpm dev` 时 AI 助手不可用是正常的——Workers AI binding 仅在 Cloudflare 运行时生效。要测试 AI，请使用 `pnpm preview`（wrangler 本地预览），或部署到 Cloudflare。
+> 本地 `pnpm dev` 时 AI 助手使用的是服务端环境变量配置的免费通道。要测试 AI，请在项目根目录创建 `.dev.vars` 文件配置 `FREE_AI_API_KEY`（见下方"AI 通道配置"），或使用 `pnpm preview` 本地预览。
 
-## 部署到 Cloudflare
+## 部署到 Cloudflare Pages
 
 ### 1. 前置准备
 
@@ -49,75 +49,65 @@ pnpm test
 pnpm wrangler login
 ```
 
-### 2. 启用 Workers AI binding
+### 2. 配置免费 AI 通道（必需）
 
-项目通过 `wrangler.jsonc` 的 `ai` binding 调用 Cloudflare Workers AI（免费额度：每天 10,000 neurons）：
+WordFlow 已移除 Cloudflare Workers AI 依赖（Pages 不支持该 binding），改为通过环境变量配置兼容 OpenAI 格式的第三方 AI 服务（默认 Agnes）。
 
-```jsonc
-{
-  "ai": {
-    "binding": "AI"
-  }
-}
-```
+在 Cloudflare Dashboard → Pages → `wordflow-ai` → Settings → Environment variables 中添加：
 
-无需在 Dashboard 单独开通，部署到 Workers 后自动生效。详见 [Workers AI 文档](https://developers.cloudflare.com/workers-ai/)。
+| 变量名 | 说明 | 示例 |
+|--------|------|------|
+| `FREE_AI_API_KEY` | 第三方 AI 服务的 API Key（**必需**） | `sk-xxxxx` |
+| `FREE_AI_PROVIDER` | Provider 名称（可选，默认 `agnes`） | `agnes` / `glm` / `deepseek` / `mimo` / `custom` |
+| `FREE_AI_BASE_URL` | 自定义 baseURL（可选） | `https://api.deepseek.com/v1` |
+| `FREE_AI_MODEL` | 自定义模型名（可选） | `deepseek-chat` |
+| `FREE_AI_DAILY_QUOTA` | 每用户每日免费额度（可选，默认 20） | `20` |
 
-### 3. 构建 + 部署
+内置 Provider 默认值见 [lib/ai/provider.ts](file:///workspace/lib/ai/provider.ts)：
+
+- `agnes` → `https://apihub.agnes-ai.com/v1` · `agnes-2.0-flash`（默认）
+- `glm` → `https://open.bigmodel.cn/api/paas/v4` · `glm-4-flash`
+- `deepseek` → `https://api.deepseek.com/v1` · `deepseek-chat`
+- `mimo` → `https://api.xiaomimimo.com/v1` · `mimo-v2-pro`
+- `custom` → 由 `FREE_AI_BASE_URL` + `FREE_AI_MODEL` 提供
+
+> **本地开发**：在项目根目录创建 `.dev.vars` 文件（已被 .gitignore 忽略），写入 `FREE_AI_API_KEY=sk-xxx` 即可。
+
+### 3. 构建 + 部署到 Pages
 
 ```bash
-# 一键构建并部署到生产
-pnpm deploy
+# 一键构建并部署到 Cloudflare Pages（获取 *.pages.dev 域名）
+pnpm deploy:pages
 
 # 或仅构建产物，本地用 wrangler 预览
 pnpm preview
 ```
 
-首次部署 Wrangler 会询问是否创建新的 Worker，确认即可。部署成功后会得到 `https://wordflow-ai.<你的子域>.workers.dev` 地址。
+首次部署 Wrangler 会提示创建 Pages 项目（project name: `wordflow-ai`），确认即可。部署成功后会得到 `https://wordflow-ai.pages.dev` 地址。
 
-> **⚠️ 国内访问说明**：`workers.dev` 默认域名在国内可能无法直接访问。
-> 这是因为 Cloudflare Workers 的默认域名走的是境外节点。解决方案是**绑定自定义域名**（见下方第 4 步），
-> 自定义域名可走 Cloudflare 中国节点或 CN2 线路，国内可正常访问。
->
-> **为什么不迁移到 Pages（pages.dev）？**
-> 本项目使用了 Cloudflare Workers AI binding（`wrangler.jsonc` 的 `ai` 配置），
-> 而 Cloudflare Pages 不支持 Workers AI binding，也无法支持 `@opennextjs/cloudflare` 的 Worker 模式部署。
-> 因此必须保持 Workers 部署，通过自定义域名解决国内访问问题。
+> **部署原理**：`@opennextjs/cloudflare build` 产生 Worker + 静态资源，脚本将 `worker.js` 复制为 `_worker.js` 放入 assets 目录，通过 `wrangler pages deploy` 部署到 Pages。Pages 会自动路由静态资源请求，非静态请求交给 `_worker.js` 处理。
 
-### 4. 绑定自定义域名（必需，解决国内访问）
+> **备选：部署到 Workers**（获取 `*.workers.dev` 域名）
+> ```bash
+> pnpm deploy   # 使用 opennextjs-cloudflare deploy，部署到 Workers
+> ```
+> Workers 与 Pages 二选一即可。Pages 对国内访问更友好，推荐使用 `deploy:pages`。
 
-在 Cloudflare Dashboard → Workers & Pages → `wordflow-ai` → Settings → Domains & Routes → Add Custom Domain 中添加自己的域名。Cloudflare 会自动配置 DNS 和 SSL。
+### 4. 绑定自定义域名（可选）
 
-绑定后，国内用户通过自定义域名访问会走优化线路，可正常使用。
+如需使用自己的域名，在 Cloudflare Dashboard → Pages → `wordflow-ai` → Custom domains 中添加。Cloudflare 会自动配置 DNS 和 SSL。
 
-## AI 通道配置（可选）
+## AI 通道说明
 
-WordFlow 支持三级 AI 通道，按优先级自动降级：
+WordFlow 支持两级 AI 通道，按优先级自动降级：
 
 | 通道 | 优先级 | 配置位置 | 适用场景 |
 |------|--------|---------|---------|
-| **BYOK** | 最高 | "我的"页 → AI 设置 | 用户自带 API Key，无限制 |
-| **环境变量 Key** | 中 | Cloudflare Dashboard → Settings → Variables | 自部署给家人朋友用 |
-| **Workers AI** | 兜底 | `wrangler.jsonc` 的 `ai` binding | 完全免费开箱即用 |
+| **BYOK** | 最高 | "我的"页 → AI 高级设置 | 用户自带 API Key，无限制 |
+| **环境变量 Key** | 兜底 | Cloudflare Dashboard → Pages → Environment variables | 自部署开箱即用 |
 
-### 自部署配置环境变量 Key（推荐）
-
-在 Cloudflare Dashboard → Workers & Pages → `wordflow-ai` → Settings → Variables and Secrets 中添加：
-
-| 变量名 | 说明 | 示例 |
-|--------|------|------|
-| `FREE_AI_API_KEY` | 第三方 AI 服务的 API Key | `sk-xxxxx` |
-| `FREE_AI_PROVIDER` | Provider 名称 | `glm` / `deepseek` / `mimo` / `custom` |
-| `FREE_AI_BASE_URL` | 自定义 baseURL（可选） | `https://api.deepseek.com/v1` |
-| `FREE_AI_MODEL` | 自定义模型名（可选） | `deepseek-chat` |
-| `FREE_AI_DAILY_QUOTA` | 每用户每日免费额度 | `20`（默认） |
-
-内置 Provider 默认值见 [lib/ai/provider.ts](file:///workspace/lib/ai/provider.ts)：
-
-- `glm` → `https://open.bigmodel.cn/api/paas/v4` · `glm-4-flash`
-- `deepseek` → `https://api.deepseek.com/v1` · `deepseek-chat`
-- `mimo` → `https://api.xiaomimimo.com/v1` · `mimo-v2-pro`
-- `custom` → 由 `FREE_AI_BASE_URL` + `FREE_AI_MODEL` 提供
+- 未配置 `FREE_AI_API_KEY` 时，AI 聊天会返回本地兜底引导文案，不阻塞用户使用其他功能
+- 配置 BYOK 后，全局 AI 助手会即时感知（同标签页事件通知 + 跨标签页 storage 事件），无需刷新
 
 ### 关于 `compatibility_flags`
 
@@ -178,10 +168,10 @@ app/                    # Next.js App Router 路由
   stats/page.tsx        # 学习统计（Streak + 热力图 + 常错词）
   books/page.tsx        # 词书选择
   me/page.tsx           # 个人中心（AI 配置）
-  api/ai/chat/route.ts  # AI 聊天 API（三级降级）
+  api/ai/chat/route.ts  # AI 聊天 API（两级降级：BYOK → 环境变量）
 
 lib/
-  ai/                   # AI Provider 抽象 + Cloudflare Workers AI
+  ai/                   # AI Provider 抽象（兼容 OpenAI 格式的第三方服务）
   dict/                 # 词典加载（懒加载 + 缓存）
   review/               # FSRS 调度 + 词书游标 + 复习会话
   storage/              # IndexedDB 封装（Dexie）

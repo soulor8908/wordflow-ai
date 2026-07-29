@@ -9,10 +9,5 @@
 	"assets": {
 		"directory": ".open-next/assets",
 		"binding": "ASSETS"
-	},
-	"ai": {
-		// Cloudflare Workers AI：免费 AI 推理，无需 API Key
-		// see https://developers.cloudflare.com/workers-ai/
-		"binding": "AI"
 	}
 }

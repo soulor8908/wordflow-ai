@@ -14,7 +14,11 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { nanoid } from "nanoid";
-import { getAiConfig, type AiConfig } from "@/lib/ai/ai-config";
+import {
+  getAiConfig,
+  AI_CONFIG_CHANGED_EVENT,
+  type AiConfig,
+} from "@/lib/ai/ai-config";
 import { listStudyLogs } from "@/lib/stats/streak-io";
 import {
   getActiveBook,
@@ -98,7 +102,7 @@ export default function AiAssistant() {
   const [config, setConfig] = useState<AiConfig | null>(null);
   const [configChecked, setConfigChecked] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /** 免费通道是否开放（服务端是否配置了 FREE_AI_API_KEY 或 CF Workers AI） */
+  /** 免费通道是否开放（服务端是否配置了 FREE_AI_API_KEY） */
   const [freeEnabled, setFreeEnabled] = useState(false);
   /** 免费通道不可用的原因（用于显示准确提示，避免误导性的"加载中"） */
   const [unavailableReason, setUnavailableReason] = useState<string | null>(null);
@@ -106,10 +110,23 @@ export default function AiAssistant() {
   const [quota, setQuota] = useState<QuotaSnapshot | null>(null);
   /** 当前每日新词量（从词书进度读取，快捷动作展示用） */
   const [currentDailyNew, setCurrentDailyNew] = useState<number | null>(null);
-  /** 快捷动作"调整每日新词量"输入框 */
-  const [dailyNewInput, setDailyNewInput] = useState("");
-  /** 快捷动作"调整每日新词量"提交中 */
-  const [settingDailyNew, setSettingDailyNew] = useState(false);
+  /**
+   * 浮窗拖动位置（相对视口 right/bottom 偏移量）。
+   * 默认靠右下角（right=16, bottom=88，避开悬浮按钮）。
+   * 拖动时通过 mousedown/mousemove/mouseup 更新。
+   */
+  const [panelPos, setPanelPos] = useState<{ right: number; bottom: number }>({
+    right: 16,
+    bottom: 88,
+  });
+  /** 拖动中的临时状态（ref 避免 re-render 抖动） */
+  const dragRef = useRef<{
+    startX: number;
+    startY: number;
+    startRight: number;
+    startBottom: number;
+  } | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const clientIdRef = useRef<string>("");
 
@@ -224,6 +241,52 @@ export default function AiAssistant() {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
+  // 监听同标签页 AI 配置变更事件（setAiConfig/clearAiConfig 派发）
+  // 这样在"我的"页保存配置后，全局 AI 助手能即时感知，无需刷新
+  useEffect(() => {
+    const onConfigChanged = () => {
+      getAiConfig()
+        .then((c) => {
+          setConfig(c);
+          setConfigChecked(true);
+        })
+        .catch(() => setConfig(null));
+    };
+    window.addEventListener(AI_CONFIG_CHANGED_EVENT, onConfigChanged);
+    return () =>
+      window.removeEventListener(AI_CONFIG_CHANGED_EVENT, onConfigChanged);
+  }, []);
+
+  // 浮窗拖动：mousedown 在头部 → mousemove 更新位置 → mouseup 结束
+  // 用 document 级监听确保鼠标移出头部仍能跟踪
+  useEffect(() => {
+    if (!open) return;
+    const onMove = (e: MouseEvent) => {
+      const drag = dragRef.current;
+      if (!drag) return;
+      // 用 right/bottom 表达位置：鼠标右移 → right 减小；鼠标下移 → bottom 减小
+      const dx = e.clientX - drag.startX;
+      const dy = e.clientY - drag.startY;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      // 限制面板不超出视口（面板宽 380，高 70vh）
+      const newRight = Math.max(0, Math.min(vw - 380, drag.startRight - dx));
+      const newBottom = Math.max(0, Math.min(vh - 80, drag.startBottom - dy));
+      setPanelPos({ right: newRight, bottom: newBottom });
+    };
+    const onUp = () => {
+      dragRef.current = null;
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    return () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+  }, [open]);
+
   const refreshQuota = useCallback(async () => {
     if (!clientIdRef.current) return;
     try {
@@ -282,6 +345,46 @@ export default function AiAssistant() {
     if (!config && !canChat) {
       setError("今日免费额度已用完，请配置自己的 API Key");
       return;
+    }
+
+    // 智能拦截：用户回复纯数字 1-100，且最近上下文提到"每日新词量"
+    // → 直接调用 setBookDailyNew 落库，不走 AI（避免消耗额度做纯设置类操作）
+    const pureNum = Number.parseInt(text, 10);
+    if (
+      Number.isFinite(pureNum) &&
+      pureNum >= 1 &&
+      pureNum <= 100 &&
+      /^\d+$/.test(text)
+    ) {
+      const recentContext = messages
+        .slice(-4)
+        .map((m) => m.content)
+        .join(" ");
+      if (
+        recentContext.includes("每日新词量") ||
+        recentContext.includes("每日新词")
+      ) {
+        const active = await getActiveBook().catch(() => null);
+        if (active) {
+          const result = await setBookDailyNew(active.bookId, pureNum).catch(
+            () => null
+          );
+          if (result !== null) {
+            setCurrentDailyNew(result);
+            const userMsg: ChatMessage = { role: "user", content: text };
+            const sysMsg: ChatMessage = {
+              role: "assistant",
+              content: `✓ 已将每日新词量调整为 ${result} 个，明天开始生效。如需继续调整，回复新的数字即可。`,
+            };
+            const next = [...messages, userMsg, sysMsg];
+            setMessages(next);
+            appendMessages(sessionId, [userMsg, sysMsg]);
+            refreshSessions();
+            setInput("");
+            return;
+          }
+        }
+      }
     }
 
     const userMsg: ChatMessage = { role: "user", content: text };
@@ -411,49 +514,35 @@ export default function AiAssistant() {
   }
 
   /**
-   * 快捷动作：调整每日新词量。
+   * 快捷动作：调整每日新词量（通过 AI 聊天引导）。
    *
-   * 直接调用 setBookDailyNew 持久化（1-100 范围限制），
-   * 不走 AI——纯设置类操作不应消耗 AI 额度。
-   * 完成后在聊天面板显示一条系统消息提示结果。
+   * 不再用表单填数字，而是注入一条 prompt 到聊天框，由 AI 引导用户
+   * 完成设置（询问目标词量、给出建议等）。用户回复后 AI 可调用
+   * setBookDailyNew 工具完成实际设置（通过 function calling）。
+   *
+   * 当前实现：注入 prompt，AI 回复建议；如回复中包含"设置为 N"，
+   * 客户端解析后调用 setBookDailyNew 落库。
    */
-  async function handleSetDailyNew() {
-    if (settingDailyNew) return;
-    const n = Number.parseInt(dailyNewInput, 10);
-    if (!Number.isFinite(n) || n < 1 || n > 100) {
-      setError("请输入 1-100 之间的数字");
-      return;
-    }
-    setSettingDailyNew(true);
-    setError(null);
-    try {
-      const active = await getActiveBook();
-      if (!active) {
-        setError("请先在首页选择词书");
-        return;
-      }
-      const result = await setBookDailyNew(active.bookId, n);
-      if (result === null) {
-        setError("词书不存在");
-        return;
-      }
-      setCurrentDailyNew(result);
-      const meta = await loadBookMeta(active.bookId);
-      const sysMsg: ChatMessage = {
-        role: "assistant",
-        content: `✓ 已将词书「${meta.name}」的每日新词量调整为 ${result} 个。明天开始生效。`,
-      };
-      const next = [...messages, sysMsg];
-      setMessages(next);
-      appendMessages(sessionId, [sysMsg]);
-      refreshSessions();
-      setDailyNewInput("");
-      setSettingDailyNew(false);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "设置失败");
-    } finally {
-      setSettingDailyNew(false);
-    }
+  async function handleAdjustDailyNew() {
+    if (sending) return;
+    const active = await getActiveBook().catch(() => null);
+    const bookName = active ? (await loadBookMeta(active.bookId).catch(() => null))?.name : null;
+    const prompt = [
+      `请帮我调整每日新词量。`,
+      ``,
+      `当前词书：${bookName ?? "未选择"}`,
+      `当前每日新词量：${currentDailyNew ?? "未设置"} 个`,
+      ``,
+      `请根据我的学习情况给出建议，并询问我想要设置为多少（范围 1-100）。`,
+      `当我回复具体数字后，请确认并告诉我设置已生效。`,
+    ].join("\n");
+
+    const userMsg: ChatMessage = { role: "user", content: prompt };
+    const nextMessages: ChatMessage[] = [...messages, userMsg];
+    setMessages(nextMessages);
+    appendMessages(sessionId, [userMsg]);
+    refreshSessions();
+    await sendToAi(nextMessages);
   }
 
   /** 内部：发送消息到 AI（提取自 handleSend，便于快捷动作复用） */
@@ -533,25 +622,34 @@ export default function AiAssistant() {
         )}
       </Button>
 
-      {/* 遮罩层：点击外部关闭面板 */}
+      {/* 聊天浮窗（可拖动，默认右下角） */}
       {open && (
         <div
-          className="fixed inset-0 z-40 bg-black/30"
-          onClick={() => setOpen(false)}
-          aria-hidden="true"
-        />
-      )}
-
-      {/* 聊天面板（全屏：宽高 100%） */}
-      {open && (
-        <div
-          className="fixed inset-0 z-50 flex h-full w-full flex-col overflow-hidden bg-white dark:bg-neutral-950"
+          ref={panelRef}
+          className="fixed z-50 flex max-h-[70vh] w-[calc(100vw-2rem)] max-w-[380px] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-950"
+          style={{
+            right: `${panelPos.right}px`,
+            bottom: `${panelPos.bottom}px`,
+          }}
           role="dialog"
-          aria-modal="true"
+          aria-modal="false"
           aria-label="AI 助手对话"
         >
-          {/* 头部 */}
-          <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-2.5 dark:border-neutral-900">
+          {/* 头部（拖动把手） */}
+          <div
+            className="flex cursor-move items-center justify-between border-b border-neutral-100 px-3 py-2.5 dark:border-neutral-900"
+            onMouseDown={(e) => {
+              // 开始拖动：记录鼠标起始位置和面板起始位置
+              dragRef.current = {
+                startX: e.clientX,
+                startY: e.clientY,
+                startRight: panelPos.right,
+                startBottom: panelPos.bottom,
+              };
+              document.body.style.userSelect = "none";
+              document.body.style.cursor = "move";
+            }}
+          >
             <div className="flex items-center gap-2">
               {/* 会话列表按钮：点击展开侧边抽屉查看历史会话 */}
               <Button
@@ -567,14 +665,14 @@ export default function AiAssistant() {
               >
                 <MenuIcon title="历史会话" className="h-4 w-4" />
               </Button>
-              <span className="text-sm font-medium">AI 助手</span>
+              <span className="select-none text-sm font-medium">AI 助手</span>
               {config ? (
-                <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] text-green-700 dark:bg-green-950 dark:text-green-300">
+                <span className="select-none rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] text-green-700 dark:bg-green-950 dark:text-green-300">
                   {config.provider}
                 </span>
               ) : freeEnabled ? (
                 <span
-                  className={`rounded-full px-1.5 py-0.5 text-[10px] ${
+                  className={`select-none rounded-full px-1.5 py-0.5 text-[10px] ${
                     (quota?.remaining ?? 0) > 0
                       ? "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
                       : "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
@@ -585,7 +683,7 @@ export default function AiAssistant() {
                 </span>
               ) : null}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               {/* 新建会话 */}
               <Button
                 type="button"
@@ -607,15 +705,7 @@ export default function AiAssistant() {
                   清空
                 </Button>
               )}
-              {/* 设置入口：点击后隐藏聊天框再跳转 */}
-              <Link
-                href="/me"
-                onClick={() => setOpen(false)}
-                className="text-[11px] text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
-              >
-                设置
-              </Link>
-              {/* 显式关闭按钮（与遮罩、Esc 形成三重关闭方式） */}
+              {/* 显式关闭按钮（与 Esc 形成双重关闭方式） */}
               <Button
                 type="button"
                 variant="ghost"
@@ -749,9 +839,9 @@ export default function AiAssistant() {
                   AI 助手暂不可用
                 </p>
                 <p className="text-xs text-neutral-400">
-                  {unavailableReason === "cloudflare-unbound"
-                    ? "Cloudflare Workers AI 未绑定，请在 wrangler.jsonc 配置 ai binding"
-                    : "部署到 Cloudflare 即可免费使用，或在「我的」页配置自己的 API Key"}
+                  {unavailableReason === "no-channel"
+                    ? "服务端未配置免费 AI 通道（FREE_AI_API_KEY），请在「我的」页配置自己的 API Key"
+                    : "部署到 Cloudflare 并配置 FREE_AI_API_KEY 即可免费使用，或在「我的」页配置自己的 API Key"}
                 </p>
                 <Link
                   href="/me"
@@ -794,7 +884,7 @@ export default function AiAssistant() {
                   </p>
                 )}
 
-                {/* 快捷动作：周报 + 调整每日新词量 */}
+                {/* 快捷动作：周报 + 调整每日新词量（通过 AI 聊天引导） */}
                 <div className="mt-3 flex flex-col gap-2 border-t border-neutral-100 pt-3 dark:border-neutral-900">
                   <p className="text-[11px] font-medium text-neutral-500">
                     快捷动作
@@ -810,42 +900,25 @@ export default function AiAssistant() {
                     >
                       📊 整理本周周报
                     </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={handleAdjustDailyNew}
+                      disabled={sending}
+                      className="!px-2 !py-1 text-[11px]"
+                    >
+                      ⚙️ 调整每日词量
+                      {currentDailyNew != null && (
+                        <span className="ml-1 font-mono text-neutral-400">
+                          ({currentDailyNew})
+                        </span>
+                      )}
+                    </Button>
                   </div>
-                  {/* 每日新词量：显示当前值 + 输入新值 */}
-                  <div className="flex flex-col gap-1.5 rounded-lg bg-neutral-50 px-2.5 py-2 dark:bg-neutral-900">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-neutral-500">每日新词量</span>
-                      <span className="font-mono text-neutral-700 dark:text-neutral-300">
-                        {currentDailyNew ?? "—"}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Input
-                        type="number"
-                        min={1}
-                        max={100}
-                        value={dailyNewInput}
-                        onChange={(e) => setDailyNewInput(e.target.value)}
-                        placeholder="1-100"
-                        disabled={settingDailyNew}
-                        className="flex-1 !text-xs"
-                        aria-label="设置每日新词量"
-                      />
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={handleSetDailyNew}
-                        disabled={settingDailyNew || !dailyNewInput.trim()}
-                        className="!px-2 !py-1 text-[11px]"
-                      >
-                        {settingDailyNew ? "…" : "保存"}
-                      </Button>
-                    </div>
-                    <p className="text-[10px] text-neutral-400">
-                      范围 1-100，明天生效
-                    </p>
-                  </div>
+                  <p className="text-[10px] text-neutral-400">
+                    点击「调整每日词量」后，在对话中回复数字（1-100）即可设置
+                  </p>
                 </div>
               </div>
             )}
