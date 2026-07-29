@@ -8,9 +8,23 @@ export interface KVRecord {
   dueAt?: string;
 }
 
-/** 提取 key 前缀（第一个 `:` 之前的内容，含冒号） */
+/**
+ * 提取 key 前缀（最后一个 `:` 之前的内容，含冒号）。
+ *
+ * 设计取舍：用最后一个冒号而非第一个，是为了支持多级前缀，如：
+ * - `gamification:badge:streak-7` → `gamification:badge:`（让 listItemsByPrefix("gamification:badge:") 能命中）
+ * - `gamification:quests:2026-07-29` → `gamification:quests:`
+ *
+ * 单冒号 key 仍正常工作：
+ * - `card:abandon` → `card:`
+ * - `log:2026-07-27` → `log:`
+ * - `gamification:shield` → `gamification:`
+ *
+ * 约定：所有 key 都不以 `:` 结尾，最后一段为业务 ID（word / date / badgeId 等），
+ * 不含 `:`，因此最后一个冒号位置即可作为前缀边界。
+ */
 export function extractPrefix(key: string): string {
-  const idx = key.indexOf(":");
+  const idx = key.lastIndexOf(":");
   return idx === -1 ? key : key.slice(0, idx + 1);
 }
 
