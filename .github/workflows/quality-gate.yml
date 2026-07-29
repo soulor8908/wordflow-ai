@@ -18,6 +18,7 @@ on:
       - "tsconfig.json"
       - "next.config.ts"
       - "vitest.config.ts"
+      - ".github/workflows/**"
   pull_request:
     branches: [main, develop]
 
