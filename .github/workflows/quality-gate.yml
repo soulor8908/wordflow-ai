@@ -14,7 +14,7 @@ on:
       - "__tests__/**"
       - "scripts/**"
       - "package.json"
-      - "package-lock.json"
+      - "pnpm-lock.yaml"
       - "tsconfig.json"
       - "next.config.ts"
       - "vitest.config.ts"
@@ -27,32 +27,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: "npm"
+          cache: "pnpm"
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Content validate (zod + G1-G7)
-        run: npm run content:validate
+        run: pnpm run content:validate
 
       - name: Content freshness
-        run: npm run content:freshness
+        run: pnpm run content:freshness
 
       - name: Lint (--max-warnings 0)
-        run: npm run lint
+        run: pnpm run lint
 
       - name: Typecheck (strict)
-        run: npm run typecheck
+        run: pnpm run typecheck
 
       - name: Unit tests (Vitest)
-        run: npm test
+        run: pnpm test
 
       - name: Build
-        run: npm run build
+        run: pnpm run build
 
   # Job 2: deploy（设计文档 §8.4：quality-gate 通过后部署到 Cloudflare Workers）
   # 适配 Next.js 16：使用 @opennextjs/cloudflare（替代旧 @cloudflare/next-on-pages）
@@ -67,17 +72,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: "npm"
+          cache: "pnpm"
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Build with OpenNext adapter
-        run: npm run build:cf
+        run: pnpm run build:cf
         env:
           NEXT_TELEMETRY_DISABLED: "1"
 
