@@ -24,8 +24,11 @@ interface ChatRequestBody extends Partial<AiSessionConfig> {
   clientId?: string;
 }
 
-/** AI 请求超时（ms）—— 上游模型冷启动/长上下文时首 token 可能 >10s，60s 留足余量 */
-const CHAT_TIMEOUT_MS = 60_000;
+/** AI 请求超时（ms）—— 上游模型冷启动/长上下文时首 token 可能 >10s。
+ * 限制在 12s：超过则视为上游不可用，降级到 fallback reply，
+ *  避免用户长时间等待 + Cloudflare Worker 超时崩溃（1101）。
+ *  Cloudflare Pages Functions subrequest 默认 30s 限制，12s 留足降级时间。 */
+const CHAT_TIMEOUT_MS = 12_000;
 
 function fetchWithTimeout(input: string, init: RequestInit): Promise<Response> {
   const signal =
