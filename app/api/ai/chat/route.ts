@@ -292,11 +292,16 @@ export async function POST(request: NextRequest) {
           : typeof err === "string"
             ? err
             : JSON.stringify(err);
-      return errorResponse(errorClass, rawError, "free", before);
+      // 上游 auth 错误（401）仍返回错误响应，引导用户配置自己的 Key
+      if (errorClass === "upstream-auth") {
+        return errorResponse(errorClass, rawError, "free", before);
+      }
+      // 上游不可用/超时/其他错误 → 降级到本地兜底文案，保证用户能收到回复
+      console.warn("[ai/chat] 免费通道失败，降级到 fallback reply:", rawError.slice(0, 200));
     }
   }
 
-  // 通道3：未配置免费通道 → 本地兜底引导文案（保证无 Key 也能响应）
+  // 通道3：免费通道未配置或失败 → 本地兜底引导文案（保证无 Key 也能响应）
   const fallbackText = buildFallbackReply(messages);
   const quota: QuotaSnapshot = await consumeQuota(clientId);
   return NextResponse.json({
