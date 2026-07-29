@@ -3,13 +3,11 @@
 	"name": "wordflow-ai",
 	"compatibility_date": "2026-07-27",
 	"compatibility_flags": ["nodejs_compat"],
-	"pages_build_output_dir": ".open-next",
+	"pages_build_output_dir": ".open-next"
 	// 免费额度限流持久化（P2-5）：
-	//   部署前需先创建 KV namespace 并填入 id：
-	//   wrangler kv namespace create FREE_QUOTA
-	//   wrangler kv namespace list  # 复制 id 到下方
-	// 代码侧已做降级：KV 未绑定时回退到进程内存（与改造前行为一致）。
-	"kv_namespaces": [
-		{ "binding": "FREE_QUOTA_KV", "id": "REPLACE_WITH_KV_NAMESPACE_ID" }
-	]
+	//   KV 绑定请在 Cloudflare Dashboard → Pages 项目 → Settings → Functions →
+	//   KV namespace bindings 中配置（binding 名：FREE_QUOTA_KV），
+	//   或用 wrangler kv namespace create FREE_QUOTA 后在 Dashboard 绑定。
+	//   不要在此文件用占位 id——会导致 wrangler deploy 校验失败。
+	//   代码侧已做降级：KV 未绑定时回退到进程内存（与改造前行为一致）。
 }
