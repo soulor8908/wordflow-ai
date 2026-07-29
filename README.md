@@ -114,8 +114,32 @@ WordFlow 支持三级 AI 通道，按优先级自动降级：
 
 ## 内容数据
 
+### 词库架构（基础词库 + 词书引用）
+
+WordFlow 采用**两层词库架构**，避免数据冗余并支持复用：
+
+1. **基础词库（Base Dict）** —— `public/dict/{首字母}/{前缀}.json`
+   - 全量词条的**单一数据源**（Single Source of Truth），存储富数据 `DictEntry`
+     （音标 / 释义 / 词根 / 同反义词 / 搭配 / 词族 / 例句 等）
+   - 用户**不需要选择**基础词库，它是底层公共数据
+   - 按前 2 字符切片（ab/ac/...），单片 <50KB，浏览器按需懒加载
+   - 词条页打开时只 fetch 对应前缀切片，命中后内存缓存
+
+2. **词书（Word Books）** —— `public/books/{id}/index.json + chunk-NNN.json`
+   - 用户可选择的"学习任务包"（CET-4 / 考研 / 程序员AI 等）
+   - 词书中的 `word` 字段**指向基础词库中的同名单词**
+   - 词书内嵌轻量字段（pos / translation / frequency / phonetic）用于
+     复习卡片渲染（避免复习时为每个单词都 fetch dict 切片）
+   - 完整释义、联想记忆字段在打开词条详情页时从基础词库按需加载
+
+3. **搜索索引（Search Index）** —— `public/search-index.json`
+   - 全量词条的 `{word, frequency}` 扁平数组，用于输入即搜
+   - 应用启动时**异步加载**（`useSearch` hook fetch + `force-cache`），
+     不阻塞首屏渲染
+   - 加载完成后构建内存前缀索引，支持 80ms 内完成前缀匹配 + 模糊纠错
+
 - **词典**：ECDICT 派生核心词条（约 7.7 万词条 MIT 协议），按需懒加载
-- **词书**：内置高考 / CET4 / 考研核心等词书（YAML 源文件 → 编译为 JSON 分片）
+- **词书**：内置高考 / CET4 / 考研核心、程序员 & AI 工作英语等词书（YAML 源文件 → 编译为 JSON 分片）
 - **词频**：COCA 高频排序（用于词书默认顺序）
 
 ### 编译词书 / 词典

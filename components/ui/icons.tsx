@@ -153,3 +153,26 @@ export function TrophyIcon(props: IconProps) {
     </Base>
   );
 }
+
+/** 云朵（云端同步） */
+export function CloudIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <path d="M17.5 19a4.5 4.5 0 0 0 0-9c-.27 0-.54.02-.8.07A6 6 0 0 0 5 13v.5A4.5 4.5 0 0 0 6.5 22h11" />
+      <path d="M12 12v6" />
+      <path d="M9 15l3 3 3-3" />
+    </Base>
+  );
+}
+
+/** 刷新（同步状态） */
+export function RefreshIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+      <path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+      <path d="M3 21v-5h5" />
+    </Base>
+  );
+}

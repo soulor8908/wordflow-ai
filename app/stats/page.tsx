@@ -16,6 +16,10 @@ import { todayLocalDate } from "@/lib/review/book-queue";
 import type { WordCard } from "@/lib/review/fsrs-scheduler";
 import { Button } from "@/components/ui/button";
 import PwaSettings from "./pwa-settings";
+import {
+  generateUserProfile,
+  type UserProfile,
+} from "@/lib/stats/user-profile";
 
 interface ErrorWord {
   word: string;
@@ -33,6 +37,7 @@ interface StatsData {
 
 export default function StatsPage() {
   const [data, setData] = useState<StatsData | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -70,6 +75,14 @@ export default function StatsPage() {
           logs,
           errorWords,
         });
+        // 生成用户画像（从已有数据派生，非阻塞）
+        generateUserProfile()
+          .then((p) => {
+            if (!cancelled) setProfile(p);
+          })
+          .catch(() => {
+            /* 画像生成失败不影响统计页主流程 */
+          });
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : "加载统计失败");
@@ -205,6 +218,80 @@ export default function StatsPage() {
         <span className="font-mono font-medium">{data.totalCards}</span>
         <span className="text-neutral-400"> 张</span>
       </section>
+
+      {/* 用户画像 */}
+      {profile && (
+        <section className="rounded-lg border border-neutral-200 px-4 py-4 dark:border-neutral-800">
+          <h2 className="mb-3 text-sm font-medium text-neutral-700 dark:text-neutral-300">
+            学习画像
+          </h2>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="rounded-md bg-neutral-50 px-3 py-2 dark:bg-neutral-900">
+              <p className="text-xs text-neutral-500">词汇水平</p>
+              <p className="mt-0.5 font-mono font-bold text-blue-600 dark:text-blue-400">
+                {profile.vocabulary.estimatedCefr}
+              </p>
+            </div>
+            <div className="rounded-md bg-neutral-50 px-3 py-2 dark:bg-neutral-900">
+              <p className="text-xs text-neutral-500">已掌握</p>
+              <p className="mt-0.5 font-mono font-bold text-green-600 dark:text-green-400">
+                {profile.vocabulary.masteredCount}
+                <span className="ml-1 text-xs font-normal text-neutral-400">词</span>
+              </p>
+            </div>
+            <div className="rounded-md bg-neutral-50 px-3 py-2 dark:bg-neutral-900">
+              <p className="text-xs text-neutral-500">学习中</p>
+              <p className="mt-0.5 font-mono font-bold text-amber-600 dark:text-amber-400">
+                {profile.vocabulary.learningCount}
+                <span className="ml-1 text-xs font-normal text-neutral-400">词</span>
+              </p>
+            </div>
+            <div className="rounded-md bg-neutral-50 px-3 py-2 dark:bg-neutral-900">
+              <p className="text-xs text-neutral-500">累计学习</p>
+              <p className="mt-0.5 font-mono font-bold text-purple-600 dark:text-purple-400">
+                {profile.habit.totalStudyDays}
+                <span className="ml-1 text-xs font-normal text-neutral-400">天</span>
+              </p>
+            </div>
+            <div className="rounded-md bg-neutral-50 px-3 py-2 dark:bg-neutral-900">
+              <p className="text-xs text-neutral-500">日均新词</p>
+              <p className="mt-0.5 font-mono font-bold text-cyan-600 dark:text-cyan-400">
+                {profile.habit.avgDailyNewWords}
+                <span className="ml-1 text-xs font-normal text-neutral-400">/天</span>
+              </p>
+            </div>
+            <div className="rounded-md bg-neutral-50 px-3 py-2 dark:bg-neutral-900">
+              <p className="text-xs text-neutral-500">偏好时段</p>
+              <p className="mt-0.5 font-mono font-bold text-rose-600 dark:text-rose-400">
+                {profile.habit.preferredPeriod}
+              </p>
+            </div>
+          </div>
+          <div className="mt-3 rounded-md bg-neutral-50 px-3 py-2 dark:bg-neutral-900">
+            <p className="text-xs text-neutral-500">正确率趋势</p>
+            <div className="mt-1 flex items-center gap-3 text-xs">
+              <span>
+                近 7 天{" "}
+                <span className="font-mono font-bold text-green-600 dark:text-green-400">
+                  {Math.round(profile.accuracy.last7Days * 100)}%
+                </span>
+              </span>
+              <span>
+                近 30 天{" "}
+                <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
+                  {Math.round(profile.accuracy.last30Days * 100)}%
+                </span>
+              </span>
+              <span>
+                总体{" "}
+                <span className="font-mono font-bold text-neutral-600 dark:text-neutral-400">
+                  {Math.round(profile.accuracy.overall * 100)}%
+                </span>
+              </span>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* 常错词：复习中 Again/Hard 评分累计，按错误次数降序 */}
       <section className="rounded-lg border border-neutral-200 px-4 py-4 dark:border-neutral-800">

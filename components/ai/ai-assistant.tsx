@@ -726,6 +726,7 @@ export default function AiAssistant() {
                 {error.includes("额度") && (
                   <Link
                     href="/me"
+                    onClick={() => setOpen(false)}
                     className="ml-1 underline hover:text-red-700 dark:hover:text-red-400"
                   >
                     去配置 →
