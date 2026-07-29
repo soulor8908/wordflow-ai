@@ -6,7 +6,8 @@
  *
  * 安全说明：
  * - 仅存储于本地 IndexedDB，不上传服务器
- * - apiKey 以明文存储（本地优先架构，无服务端加密）
+ * - apiKey 用 Web Crypto AES-GCM 加密后落盘（密钥非可导出，不随备份导出）
+ * - 旧版明文记录兼容：读取时遇非加密格式原样返回，下次保存自动加密迁移
  * - 用户可在"我的"页随时清除
  *
  * 变更传播：
@@ -15,6 +16,7 @@
  * 这样全局 AI 助手等组件能即时感知配置变化，不再误报"未配置"。
  */
 import { getItem, setItem, delItem } from "@/lib/storage/db";
+import { encryptText, decryptText } from "@/lib/security/crypto";
 import type { ProviderName } from "@/lib/ai/provider";
 
 const AI_CONFIG_KEY = "settings:ai-config";
@@ -36,18 +38,21 @@ export interface AiConfig {
   configuredAt: string;
 }
 
-/** 读取用户配置的 AI 凭据 */
+/** 读取用户配置的 AI 凭据（apiKey 运行时解密） */
 export async function getAiConfig(): Promise<AiConfig | null> {
   const v = await getItem<AiConfig>(AI_CONFIG_KEY);
-  return v ?? null;
+  if (!v) return null;
+  return { ...v, apiKey: await decryptText(v.apiKey) };
 }
 
-/** 保存 AI 凭据 */
+/** 保存 AI 凭据（apiKey 落盘前加密） */
 export async function setAiConfig(
   config: Omit<AiConfig, "configuredAt">
 ): Promise<void> {
+  const encryptedKey = await encryptText(config.apiKey);
   await setItem(AI_CONFIG_KEY, {
     ...config,
+    apiKey: encryptedKey,
     configuredAt: new Date().toISOString(),
   });
   notifyAiConfigChanged();

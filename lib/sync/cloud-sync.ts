@@ -16,6 +16,7 @@
  * 较新的记录覆盖较旧的。删除以 tombstone 标记（MVP 阶段直接跳过已删除项）。
  */
 import { getDb, listItemsByPrefix, type KVRecord } from "@/lib/storage/db";
+import { CRYPTO_KEY_STORAGE } from "@/lib/security/crypto";
 import type { UserProfile } from "@/lib/stats/user-profile";
 
 /** 同步数据包版本 */
@@ -61,7 +62,7 @@ export async function exportSyncBundle(): Promise<SyncBundle> {
   const allRecords = await db.kv.toArray();
 
   const records: SyncRecord[] = allRecords
-    .filter((r) => r.key && r.prefix)
+    .filter((r) => r.key && r.prefix && r.key !== CRYPTO_KEY_STORAGE)
     .map((r) => ({
       key: r.key,
       value: r.value,
