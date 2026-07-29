@@ -146,11 +146,19 @@ export default function MePage() {
         </p>
       </header>
 
-      {/* 学习总览 */}
-      <section className="rounded-xl border border-neutral-200 px-4 py-4 dark:border-neutral-800">
-        <h2 className="mb-3 text-sm font-medium text-neutral-700 dark:text-neutral-300">
-          学习总览
-        </h2>
+      {/* 学习总览（点击跳转统计详情页） */}
+      <Link
+        href="/stats"
+        className="block rounded-xl border border-neutral-200 px-4 py-4 transition-colors hover:border-blue-300 hover:bg-blue-50/50 dark:border-neutral-800 dark:hover:border-blue-700 dark:hover:bg-blue-950/30"
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+            学习总览
+          </h2>
+          <span className="flex items-center gap-0.5 text-xs text-blue-600 dark:text-blue-400">
+            查看统计 <ChevronRightIcon className="h-3.5 w-3.5" />
+          </span>
+        </div>
         <div className="grid grid-cols-4 gap-3 text-center">
           <Stat
             label="连续天数"
@@ -173,7 +181,7 @@ export default function MePage() {
             color="text-red-500"
           />
         </div>
-      </section>
+      </Link>
 
       {/* 我的卡片 */}
       <section className="rounded-xl border border-neutral-200 px-4 py-4 dark:border-neutral-800">

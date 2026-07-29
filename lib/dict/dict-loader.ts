@@ -67,10 +67,10 @@ export function sliceKeyForWord(word: string): string {
   return word.toLowerCase().slice(0, 2);
 }
 
-/** 构建切片 URL：/dict/{首字母}/{sliceKey}.json */
+/** 构建切片 URL：/dict-data/{首字母}/{sliceKey}.json */
 export function sliceUrlForWord(word: string): string {
   const key = sliceKeyForWord(word);
-  return `/dict/${key[0]}/${key}.json`;
+  return `/dict-data/${key[0]}/${key}.json`;
 }
 
 const sliceCache = new Map<string, Promise<DictEntry[]>>();

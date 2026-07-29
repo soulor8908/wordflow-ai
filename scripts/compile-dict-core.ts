@@ -88,7 +88,7 @@ export function groupEntriesBySlice(entries: DictEntry[]): Map<string, DictEntry
 }
 
 export interface SliceFile {
-  /** 相对站点根的路径，如 "/dict/a/ab.json" */
+  /** 相对站点根的路径，如 "/dict-data/a/ab.json" */
   path: string;
   content: string;
 }
@@ -110,7 +110,7 @@ export function buildSliceFiles(entries: DictEntry[]): SliceFile[] {
       );
     }
     files.push({
-      path: `/dict/${key[0]}/${key}.json`,
+      path: `/dict-data/${key[0]}/${key}.json`,
       content,
     });
   }

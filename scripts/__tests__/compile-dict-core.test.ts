@@ -97,15 +97,15 @@ describe("buildSliceFiles", () => {
     { word: "accept", translation: "接受", frequency: 7000 },
   ];
 
-  test("produces {path, content} pairs at /dict/{letter}/{slice}.json", () => {
+  test("produces {path, content} pairs at /dict-data/{letter}/{slice}.json", () => {
     const files = buildSliceFiles(entries);
     const paths = files.map((f) => f.path).sort();
-    expect(paths).toEqual(["/dict/a/ab.json", "/dict/a/ac.json"]);
+    expect(paths).toEqual(["/dict-data/a/ab.json", "/dict-data/a/ac.json"]);
   });
 
   test("content is JSON-serialized DictEntry array", () => {
     const files = buildSliceFiles(entries);
-    const abFile = files.find((f) => f.path === "/dict/a/ab.json");
+    const abFile = files.find((f) => f.path === "/dict-data/a/ab.json");
     expect(abFile).toBeDefined();
     const parsed = JSON.parse(abFile!.content);
     expect(Array.isArray(parsed)).toBe(true);

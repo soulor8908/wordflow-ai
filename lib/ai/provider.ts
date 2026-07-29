@@ -39,7 +39,7 @@ export const PROVIDER_CONFIGS: Record<ProviderName, ProviderConfig> = {
     defaultModel: "mimo-v2-pro",
   },
   agnes: {
-    // Agnes AI（兼容 OpenAI 格式），作为默认免费通道 provider
+    // Agnes AI（兼容 OpenAI 格式）
     baseURL: "https://apihub.agnes-ai.com/v1",
     defaultModel: "agnes-2.0-flash",
   },

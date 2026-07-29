@@ -63,13 +63,13 @@ describe("sliceKeyForWord", () => {
 });
 
 describe("sliceUrlForWord", () => {
-  test("builds /dict/{first-letter}/{slice}.json URL", () => {
-    expect(sliceUrlForWord("abandon")).toBe("/dict/a/ab.json");
-    expect(sliceUrlForWord("Accept")).toBe("/dict/a/ac.json");
+  test("builds /dict-data/{first-letter}/{slice}.json URL", () => {
+    expect(sliceUrlForWord("abandon")).toBe("/dict-data/a/ab.json");
+    expect(sliceUrlForWord("Accept")).toBe("/dict-data/a/ac.json");
   });
 
   test("single-letter word uses itself as slice key", () => {
-    expect(sliceUrlForWord("a")).toBe("/dict/a/a.json");
+    expect(sliceUrlForWord("a")).toBe("/dict-data/a/a.json");
   });
 });
 
@@ -86,7 +86,7 @@ describe("loadDictSlice", () => {
     } as Response);
 
     const slice = await loadDictSlice("abandon");
-    expect(fetchSpy).toHaveBeenCalledWith("/dict/a/ab.json", expect.any(Object));
+    expect(fetchSpy).toHaveBeenCalledWith("/dict-data/a/ab.json", expect.any(Object));
     expect(slice).toHaveLength(2);
     expect(slice[0].word).toBe("abandon");
   });

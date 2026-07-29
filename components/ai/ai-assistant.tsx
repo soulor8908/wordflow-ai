@@ -731,9 +731,42 @@ export default function AiAssistant() {
     }
   }
 
-  /** 删除单条消息 */
+  /** 删除消息（配对删除：user+assistant 一起删） */
   function handleDeleteMessage(idx: number) {
-    const next = messages.filter((_, i) => i !== idx);
+    const msg = messages[idx];
+    if (!msg) return;
+    let toRemove: number[];
+    if (msg.role === "user") {
+      // 删除 user 消息 + 紧随其后的 assistant 回复（到下一条 user 之前）
+      let end = idx + 1;
+      while (end < messages.length && messages[end].role === "assistant") end++;
+      toRemove = Array.from({ length: end - idx }, (_, k) => idx + k);
+    } else {
+      // 删除 assistant 消息 + 其对应的上一条 user 问题
+      let start = idx - 1;
+      while (start >= 0 && messages[start].role === "assistant") start--;
+      toRemove =
+        start >= 0 && messages[start].role === "user"
+          ? [start, idx]
+          : [idx];
+    }
+    const removeSet = new Set(toRemove);
+    const next = messages.filter((_, i) => !removeSet.has(i));
+    setMessages(next);
+    setSessionMessages(sessionId, next);
+    refreshSessions();
+  }
+
+  /** 编辑 user 消息：填入输入框并删除该消息及其回复 */
+  function handleEditUserMessage(idx: number) {
+    const msg = messages[idx];
+    if (!msg || msg.role !== "user") return;
+    setInput(msg.content);
+    // 删除该 user 消息 + 后续 assistant 回复
+    let end = idx + 1;
+    while (end < messages.length && messages[end].role === "assistant") end++;
+    const removeSet = new Set(Array.from({ length: end - idx }, (_, k) => idx + k));
+    const next = messages.filter((_, i) => !removeSet.has(i));
     setMessages(next);
     setSessionMessages(sessionId, next);
     refreshSessions();
@@ -1194,9 +1227,10 @@ export default function AiAssistant() {
                     <span className="whitespace-pre-wrap">{m.content}</span>
                   )}
                 </div>
-                {/* 消息操作栏：复制 / 刷新 / 删除 */}
-                {m.role === "assistant" && m.content && (
-                  <div className="mt-0.5 flex items-center gap-1 px-1">
+                {/* 消息操作栏 */}
+                {m.content && (
+                  <div className={`mt-0.5 flex items-center gap-1 px-1 ${m.role === "user" ? "flex-row-reverse" : ""}`}>
+                    {/* 复制：user 和 assistant 都有 */}
                     <Button
                       type="button"
                       variant="plain"
@@ -1216,8 +1250,22 @@ export default function AiAssistant() {
                         </>
                       )}
                     </Button>
+                    {/* 编辑：仅 user 消息显示 */}
+                    {m.role === "user" && (
+                      <Button
+                        type="button"
+                        variant="plain"
+                        onClick={() => handleEditUserMessage(i)}
+                        disabled={sending}
+                        aria-label="编辑"
+                        className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] !text-neutral-400 hover:!bg-neutral-100 hover:!text-neutral-600 disabled:opacity-40 dark:hover:!bg-neutral-800 dark:hover:!text-neutral-300"
+                      >
+                        <EditIcon className="h-3 w-3" />
+                        <span>编辑</span>
+                      </Button>
+                    )}
                     {/* 刷新：仅最后一条 assistant 消息显示 */}
-                    {i === messages.length - 1 && (
+                    {m.role === "assistant" && i === messages.length - 1 && (
                       <Button
                         type="button"
                         variant="plain"
@@ -1230,6 +1278,7 @@ export default function AiAssistant() {
                         <span>刷新</span>
                       </Button>
                     )}
+                    {/* 删除：user 和 assistant 都有，配对删除 */}
                     <Button
                       type="button"
                       variant="plain"

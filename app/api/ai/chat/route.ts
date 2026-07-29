@@ -41,19 +41,27 @@ function fetchWithTimeout(input: string, init: RequestInit): Promise<Response> {
 /**
  * 从环境变量构造免费通道的 session。
  *
- * 默认走 Agnes（agnes-2.0-flash），无需额外配置即开箱可用——
- * 只需在部署环境（Cloudflare Pages Variables 或本地 .dev.vars）配置：
- *   FREE_AI_API_KEY=sk-xxx
+ * 默认走 DeepSeek（deepseek-v4-flash），开箱即用。
+ * 可通过环境变量覆盖：
+ *   FREE_AI_API_KEY / FREE_AI_PROVIDER / FREE_AI_BASE_URL / FREE_AI_MODEL
+ *
+ * 部署到 Cloudflare Pages 时，在 Dashboard → Settings → Environment variables 配置。
  */
+// 内置默认免费通道（用户未配置环境变量时使用）
+const DEFAULT_FREE_API_KEY = "sk-17340d9fd1be4eec9e56470e8e087d4a";
+const DEFAULT_FREE_PROVIDER: AiSessionConfig["provider"] = "deepseek";
+const DEFAULT_FREE_MODEL = "deepseek-v4-flash";
+
 function getFreeSession(): AiSessionConfig | null {
-  const apiKey = process.env.FREE_AI_API_KEY;
-  if (!apiKey) return null;
-  const provider = (process.env.FREE_AI_PROVIDER as AiSessionConfig["provider"]) ?? "agnes";
+  const apiKey = process.env.FREE_AI_API_KEY || DEFAULT_FREE_API_KEY;
+  const provider =
+    (process.env.FREE_AI_PROVIDER as AiSessionConfig["provider"]) ||
+    DEFAULT_FREE_PROVIDER;
   return {
     provider,
     apiKey,
     baseURL: process.env.FREE_AI_BASE_URL || undefined,
-    model: process.env.FREE_AI_MODEL || undefined,
+    model: process.env.FREE_AI_MODEL || DEFAULT_FREE_MODEL,
   };
 }
 

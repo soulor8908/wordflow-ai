@@ -9,7 +9,7 @@
  *
  * 一致性权衡：
  * - KV 是最终一致的（写入最长 ~60s 全球传播），多 edge 并发可能多放几 次
- * - 免费额度场景（20 次/日）可接受此误差，无需 Durable Objects 的强一致
+ * - 免费额度场景（50 次/日）可接受此误差，无需 Durable Objects 的强一致
  *
  * 降级策略：
  * - KV 未绑定（本地 dev / 测试 / 未配置 namespace）→ 回退到进程内存
@@ -57,8 +57,8 @@ function utcDate(now: Date = new Date()): string {
 /** 每日免费额度上限，可通过环境变量覆盖 */
 export function getDailyQuotaLimit(): number {
   const raw = process.env.FREE_AI_DAILY_QUOTA;
-  const n = raw ? Number.parseInt(raw, 10) : 20;
-  return Number.isFinite(n) && n > 0 ? n : 20;
+  const n = raw ? Number.parseInt(raw, 10) : 50;
+  return Number.isFinite(n) && n > 0 ? n : 50;
 }
 
 export interface QuotaSnapshot {

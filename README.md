@@ -57,17 +57,17 @@ WordFlow 已移除 Cloudflare Workers AI 依赖（Pages 不支持该 binding）�
 
 | 变量名 | 说明 | 示例 |
 |--------|------|------|
-| `FREE_AI_API_KEY` | 第三方 AI 服务的 API Key（**必需**） | `sk-xxxxx` |
-| `FREE_AI_PROVIDER` | Provider 名称（可选，默认 `agnes`） | `agnes` / `glm` / `deepseek` / `mimo` / `custom` |
+| `FREE_AI_API_KEY` | 第三方 AI 服务的 API Key（可选，内置默认） | `sk-xxxxx` |
+| `FREE_AI_PROVIDER` | Provider 名称（可选，默认 `deepseek`） | `agnes` / `glm` / `deepseek` / `mimo` / `custom` |
 | `FREE_AI_BASE_URL` | 自定义 baseURL（可选） | `https://api.deepseek.com/v1` |
-| `FREE_AI_MODEL` | 自定义模型名（可选） | `deepseek-chat` |
-| `FREE_AI_DAILY_QUOTA` | 每用户每日免费额度（可选，默认 20） | `20` |
+| `FREE_AI_MODEL` | 自定义模型名（可选） | `deepseek-v4-flash` |
+| `FREE_AI_DAILY_QUOTA` | 每用户每日免费额度（可选，默认 50） | `50` |
 
 内置 Provider 默认值见 [lib/ai/provider.ts](file:///workspace/lib/ai/provider.ts)：
 
-- `agnes` → `https://apihub.agnes-ai.com/v1` · `agnes-2.0-flash`（默认）
+- `deepseek` → `https://api.deepseek.com/v1` · `deepseek-v4-flash`（默认免费通道）
+- `agnes` → `https://apihub.agnes-ai.com/v1` · `agnes-2.0-flash`
 - `glm` → `https://open.bigmodel.cn/api/paas/v4` · `glm-4-flash`
-- `deepseek` → `https://api.deepseek.com/v1` · `deepseek-chat`
 - `mimo` → `https://api.xiaomimimo.com/v1` · `mimo-v2-pro`
 - `custom` → 由 `FREE_AI_BASE_URL` + `FREE_AI_MODEL` 提供
 

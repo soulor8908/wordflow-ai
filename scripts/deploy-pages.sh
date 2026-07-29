@@ -75,7 +75,7 @@ cat > .open-next/_routes.json <<'ROUTES'
     "/_next/static/*",
     "/_next/image/*",
     "/book-data/*",
-    "/dict/*",
+    "/dict-data/*",
     "/icons/*",
     "/favicon.ico",
     "/favicon.svg",
