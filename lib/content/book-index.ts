@@ -1,8 +1,8 @@
 /**
  * 官方词库索引（设计文档 §3.2 C）
  *
- * 从 /books/index.json 加载所有官方词书的元信息（不含词条数据），
- * 词库管理页用于列表展示；选定后按需 fetch /books/{id}.json 加载词条
+ * 从 /book-data/index.json 加载所有官方词书的元信息（不含词条数据），
+ * 词库管理页用于列表展示；选定后按需 fetch /book-data/{id}/index.json 加载词条
  *
  * 性能：客户端不再 import zod（~280KB / gzip 64KB），改为轻量结构校验。
  * 完整 zod schema 校验已在构建期由 scripts/validate-content.ts 完成，

@@ -202,7 +202,7 @@ export default function BooksPage() {
       </ul>
 
       <div className="rounded-lg border border-dashed border-neutral-300 px-4 py-3 text-xs text-neutral-400 dark:border-neutral-700">
-        更多词库（托福 / 雅思 / GRE / 自定义词库）开发中
+        已支持托福 / 雅思 / GRE 三大考试词库，自定义词库开发中
       </div>
 
       {/* 切换确认对话框：避免误触切换丢失对当前进度的感知 */}

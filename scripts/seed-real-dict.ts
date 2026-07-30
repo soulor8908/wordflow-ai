@@ -2,11 +2,11 @@
 /**
  * 真实词典切片 seeder（ECDICT T0 格式，对齐设计文档 §4.1）
  *
- * 目的：为 public/books/*.json 词书引用的词条生成完整的 ECDICT 格式切片，
+ * 目的：为 public/book-data/ 词书引用的词条生成完整的 ECDICT 格式切片，
  *       覆盖 phonetic / definition / translation / examples / synonyms / root。
  *
  * 数据来源：
- *   - 词条基础（word/pos/translation/frequency/tags）来自 public/books/*.json
+ *   - 词条基础（word/pos/translation/frequency/tags）来自 public/book-data/*.json
  *   - 音标（IPA）：标准词典（Oxford/Cambridge）通用转写
  *   - 英文释义（definition）：基于 Oxford/Cambridge 公开释义改写
  *   - 例句：常见教学例句，词频高、句式简单
@@ -28,10 +28,10 @@ interface BookWord {
   frequency?: number;
 }
 
-/** 从 public/books/*.json 收集所有词条的元数据（pos/translation/frequency/tags） */
+/** 从 public/book-data/*.json 收集所有词条的元数据（pos/translation/frequency/tags） */
 function collectBookWords(publicDir: string): Map<string, DictEntry> {
   const map = new Map<string, DictEntry>();
-  const booksDir = join(publicDir, "books");
+  const booksDir = join(publicDir, "book-data");
   if (!existsSync(booksDir)) return map;
   const files = readdirSync(booksDir).filter(
     (f) => f.endsWith(".json") && f !== "index.json"

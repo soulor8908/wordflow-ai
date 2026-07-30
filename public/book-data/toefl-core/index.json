@@ -1,0 +1,25 @@
+{
+  "id": "toefl-core",
+  "name": "TOEFL 托福核心学术词",
+  "description": "托福 iBT 核心学术词汇，覆盖 TPO 真题高频动词与学科话题词（基于 ETS TPO 语料 + Academic Word List + NAWL）",
+  "dailyNew": 25,
+  "sources": [
+    {
+      "level": "T0",
+      "name": "ETS TOEFL iBT 官方指南"
+    },
+    {
+      "level": "T2",
+      "name": "Academic Word List (AWL) + NAWL"
+    }
+  ],
+  "sliced": true,
+  "wordCount": 223,
+  "chunkSize": 100,
+  "chunkCount": 3,
+  "chunks": [
+    "chunk-000.json",
+    "chunk-001.json",
+    "chunk-002.json"
+  ]
+}

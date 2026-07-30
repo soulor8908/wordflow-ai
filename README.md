@@ -8,7 +8,7 @@
 - **目标用户不是从零开始**：通过刷题模式长按"认识"快速标记已会词，集中精力学不会的
 - **本地优先 + 离线可用**：词典数据按需懒加载，PWA 装机后断网仍可复习
 - **FSRS 间隔重复算法**：开源版 SuperMemo，比 Anki 默认 SM-2 更精准
-- **AI 助手**：开箱即用的免费通道（环境变量配置 Agnes/GLM/DeepSeek 等），支持 BYOK 自带 Key
+- **AI 助手**：开箱即用的免费通道（环境变量配置 DeepSeek/Agnes/GLM 等），支持 BYOK 自带 Key
 - **常错词自动统计**：复习中标记"忘记/模糊"自动累计，统计页一目了然
 
 ## 技术栈
@@ -17,7 +17,7 @@
 - **运行时**：Cloudflare Pages（通过 `@opennextjs/cloudflare` 构建 + `wrangler pages deploy`）
 - **存储**：IndexedDB（Dexie，本地优先）+ Cloudflare KV（同步层，预留）
 - **算法**：ts-fsrs（FSRS v5）
-- **AI**：Vercel AI SDK + 兼容 OpenAI 格式的第三方服务（默认 Agnes，环境变量配置）
+- **AI**：Vercel AI SDK + 兼容 OpenAI 格式的第三方服务（默认 DeepSeek，环境变量配置）
 - **样式**：Tailwind CSS v4
 - **测试**：Vitest + Testing Library
 
@@ -51,7 +51,7 @@ pnpm wrangler login
 
 ### 2. 配置免费 AI 通道（必需）
 
-WordFlow 已移除 Cloudflare Workers AI 依赖（Pages 不支持该 binding），改为通过环境变量配置兼容 OpenAI 格式的第三方 AI 服务（默认 Agnes）。
+WordFlow 已移除 Cloudflare Workers AI 依赖（Pages 不支持该 binding），改为通过环境变量配置兼容 OpenAI 格式的第三方 AI 服务（默认 DeepSeek）。
 
 在 Cloudflare Dashboard → Pages → `wordflow-ai` → Settings → Environment variables 中添加：
 
@@ -65,7 +65,7 @@ WordFlow 已移除 Cloudflare Workers AI 依赖（Pages 不支持该 binding）�
 
 内置 Provider 默认值见 [lib/ai/provider.ts](file:///workspace/lib/ai/provider.ts)：
 
-- `deepseek` → `https://api.deepseek.com/v1` · `deepseek-v4-flash`（默认免费通道）
+- `deepseek` → `https://api.deepseek.com/v1` · `deepseek-chat`（默认免费通道）
 - `agnes` → `https://apihub.agnes-ai.com/v1` · `agnes-2.0-flash`
 - `glm` → `https://open.bigmodel.cn/api/paas/v4` · `glm-4-flash`
 - `mimo` → `https://api.xiaomimimo.com/v1` · `mimo-v2-pro`
@@ -126,8 +126,8 @@ WordFlow 采用**两层词库架构**，避免数据冗余并支持复用：
    - 按前 2 字符切片（ab/ac/...），单片 <50KB，浏览器按需懒加载
    - 词条页打开时只 fetch 对应前缀切片，命中后内存缓存
 
-2. **词书（Word Books）** —— `public/books/{id}/index.json + chunk-NNN.json`
-   - 用户可选择的"学习任务包"（CET-4 / 考研 / 程序员AI 等）
+2. **词书（Word Books）** —— `public/book-data/{id}/index.json + chunk-NNN.json`
+   - 用户可选择的"学习任务包"（CET-4 / CET-6 / 高考 / 考研 / 托福 / 雅思 / GRE / 程序员&AI / 宝妈亲子 等）
    - 词书中的 `word` 字段**指向基础词库中的同名单词**
    - 词书内嵌轻量字段（pos / translation / frequency / phonetic）用于
      复习卡片渲染（避免复习时为每个单词都 fetch dict 切片）
@@ -139,14 +139,14 @@ WordFlow 采用**两层词库架构**，避免数据冗余并支持复用：
      不阻塞首屏渲染
    - 加载完成后构建内存前缀索引，支持 80ms 内完成前缀匹配 + 模糊纠错
 
-- **词典**：ECDICT 派生核心词条（约 7.7 万词条 MIT 协议），按需懒加载
-- **词书**：内置高考 / CET4 / 考研核心、程序员 & AI 工作英语等词书（YAML 源文件 → 编译为 JSON 分片）
+- **词典**：ECDICT 派生核心词条（约 4.2 万词条 MIT 协议），按需懒加载
+- **词书**：内置宝妈亲子 / CET-4 / CET-6 / 高考 / 考研 / 托福 / 雅思 / GRE / 程序员&AI 等词书（YAML 源文件 → 编译为 JSON 分片）
 - **词频**：COCA 高频排序（用于词书默认顺序）
 
 ### 编译词书 / 词典
 
 ```bash
-# 从 YAML 源文件编译词书到 public/books/
+# 从 YAML 源文件编译词书到 public/book-data/
 pnpm books:compile
 
 # 编译核心词典
@@ -185,7 +185,7 @@ components/
   ui/                   # 通用 UI 组件
 
 scripts/                # 构建/校验脚本（dict / books / quality-gate）
-public/books/           # 编译后的词书分片（运行时懒加载）
+public/book-data/       # 编译后的词书分片（运行时懒加载）
 books/                  # 词书 YAML 源文件
 ```
 

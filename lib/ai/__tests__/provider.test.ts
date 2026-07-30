@@ -14,7 +14,7 @@ describe("getProviderConfig — 五家 Provider 配置", () => {
     expect(cfg.defaultModel).toBe("glm-4-flash");
   });
 
-  test("deepseek: 备选 Trial", () => {
+  test("deepseek: 兼容 OpenAI 格式的备选 Provider", () => {
     const cfg = getProviderConfig("deepseek");
     expect(cfg.baseURL).toBe("https://api.deepseek.com/v1");
     expect(cfg.defaultModel).toBe("deepseek-chat");
@@ -26,7 +26,7 @@ describe("getProviderConfig — 五家 Provider 配置", () => {
     expect(cfg.defaultModel).toBe("mimo-v2-pro");
   });
 
-  test("agnes: 默认免费通道，兼容 OpenAI 格式", () => {
+  test("agnes: 兼容 OpenAI 格式的备选 Provider", () => {
     const cfg = getProviderConfig("agnes");
     expect(cfg.baseURL).toBe("https://apihub.agnes-ai.com/v1");
     expect(cfg.defaultModel).toBe("agnes-2.0-flash");

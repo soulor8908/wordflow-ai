@@ -5,8 +5,8 @@
  *
  * 覆盖：编程通用、Web/后端、数据/AI/大语言模型最新术语。
  * 产出：
- *   public/books/dev-core/index.json
- *   public/books/dev-core/chunk-000.json ... chunk-00X.json
+ *   public/book-data/dev-core/index.json
+ *   public/book-data/dev-core/chunk-000.json ... chunk-00X.json
  * 并把词条合并写入 public/dict-data/{letter}/{prefix}.json（DictEntry 格式）。
  */
 const fs = require("fs");
@@ -171,7 +171,7 @@ const WORDS = [
 
 const CHUNK_SIZE = 100;
 const publicDir = path.join(process.cwd(), "public");
-const bookDir = path.join(publicDir, "books", "dev-core");
+const bookDir = path.join(publicDir, "book-data", "dev-core");
 
 // 去重
 const seen = new Set();

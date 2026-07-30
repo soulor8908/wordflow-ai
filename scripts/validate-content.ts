@@ -6,8 +6,8 @@
  * 2. G1-G7 图谱规则校验（audit-rules）
  *
  * 支持两种词书格式：
- * - 扁平：books/{id}.json（内嵌 words 数组）
- * - 切片：books/{id}/index.json + chunk-NNN.json（按需加载）
+ * - 扁平：book-data/{id}.json（内嵌 words 数组）
+ * - 切片：book-data/{id}/index.json + chunk-NNN.json（按需加载）
  *
  * 用法：tsx scripts/validate-content.ts [public-dir]
  * 退出码：0=通过，1=校验失败

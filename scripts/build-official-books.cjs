@@ -7,8 +7,8 @@
  *   - Highschool_edited.txt: word only（高考词表无释义，交叉引用 CET4/CET6/考研 补全）
  *
  * 输出：切片化词库
- *   - public/books/{id}/index.json  — 元数据 + chunk 清单（不含 words 数组）
- *   - public/books/{id}/chunk-NNN.json — 每 100 词一个切片
+ *   - public/book-data/{id}/index.json  — 元数据 + chunk 清单（不含 words 数组）
+ *   - public/book-data/{id}/chunk-NNN.json — 每 100 词一个切片
  *
  * 用法：node scripts/build-official-books.cjs <wordlists-dir> [output-dir]
  *   wordlists-dir 含 CET4_edited.txt / CET6_edited.txt / NPEE_Wordlist.txt / Highschool_edited.txt
@@ -203,8 +203,8 @@ const BOOK_META = {
 
 /**
  * 构建切片化词库：
- * - public/books/{id}/index.json — 元数据 + chunk 清单
- * - public/books/{id}/chunk-NNN.json — 100 词/切片
+ * - public/book-data/{id}/index.json — 元数据 + chunk 清单
+ * - public/book-data/{id}/chunk-NNN.json — 100 词/切片
  */
 function buildSlicedBook(bookId, entries, outputDir) {
   const meta = BOOK_META[bookId];
@@ -212,7 +212,7 @@ function buildSlicedBook(bookId, entries, outputDir) {
 
   const total = entries.length;
   const chunkCount = Math.ceil(total / CHUNK_SIZE);
-  const bookDir = path.join(outputDir, "books", bookId);
+  const bookDir = path.join(outputDir, "book-data", bookId);
   fs.mkdirSync(bookDir, { recursive: true });
 
   // 赋 frequency
@@ -336,7 +336,7 @@ function main() {
       };
     }),
   };
-  const indexPath = path.join(outputDir, "books", "index.json");
+  const indexPath = path.join(outputDir, "book-data", "index.json");
   fs.writeFileSync(indexPath, JSON.stringify(booksIndex, null, 2), "utf8");
   console.log(`\n[build-official-books] 更新 books/index.json`);
 

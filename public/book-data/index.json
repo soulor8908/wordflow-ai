@@ -65,6 +65,39 @@
       "color": "slate",
       "sliced": true,
       "chunkCount": 2
+    },
+    {
+      "id": "toefl-core",
+      "name": "TOEFL 托福核心学术词",
+      "description": "托福 iBT 核心学术词汇，覆盖 TPO 真题高频动词与学科话题词（基于 ETS TPO 语料 + Academic Word List + NAWL）",
+      "level": "TOEFL",
+      "wordCount": 223,
+      "dailyNew": 25,
+      "color": "red",
+      "sliced": true,
+      "chunkCount": 3
+    },
+    {
+      "id": "ielts-core",
+      "name": "IELTS 雅思核心学术词",
+      "description": "雅思学术类核心词汇，覆盖 AWL 学术词族 + 剑桥真题高频同义替换与搭配（基于剑桥语料库 + Academic Word List）",
+      "level": "IELTS",
+      "wordCount": 104,
+      "dailyNew": 20,
+      "color": "amber",
+      "sliced": true,
+      "chunkCount": 2
+    },
+    {
+      "id": "gre-core",
+      "name": "GRE 核心填空词汇",
+      "description": "GRE Verbal 核心填空高频词，覆盖近义词辨析与学术难词（基于 ETS 官方题库 + Magoosh + 巴朗 800 / 再要你命 3000）",
+      "level": "GRE",
+      "wordCount": 219,
+      "dailyNew": 30,
+      "color": "slate",
+      "sliced": true,
+      "chunkCount": 3
     }
   ]
 }

@@ -130,7 +130,7 @@ curl -s "https://wordflow-ai.pages.dev/dict-data/a/ab.json" | head -c 100  # 词
 |--------|------|----------|
 | `CLOUDFLARE_API_TOKEN` | wrangler 部署认证 | 本地环境变量 |
 | `FREE_AI_API_KEY` | 免费AI通道密钥 | `wrangler pages secret put` |
-| `FREE_AI_PROVIDER` | AI Provider（默认agnes） | Pages Dashboard 或 secret |
-| `FREE_AI_MODEL` | 模型名（默认agnes-2.0-flash） | Pages Dashboard 或 secret |
+| `FREE_AI_PROVIDER` | AI Provider（默认deepseek） | Pages Dashboard 或 secret |
+| `FREE_AI_MODEL` | 模型名（默认deepseek-v4-flash） | Pages Dashboard 或 secret |
 
 > **注意**：Secret 配置后必须重新部署才能生效。Pages 环境变量在 Dashboard 设置后也需要重新部署。

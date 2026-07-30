@@ -1,0 +1,25 @@
+{
+  "id": "gre-core",
+  "name": "GRE 核心填空词汇",
+  "description": "GRE Verbal 核心填空高频词，覆盖近义词辨析与学术难词（基于 ETS 官方题库 + Magoosh + 巴朗 800 / 再要你命 3000）",
+  "dailyNew": 30,
+  "sources": [
+    {
+      "level": "T0",
+      "name": "ETS GRE 官方指南"
+    },
+    {
+      "level": "T2",
+      "name": "Barron's 800 + Magoosh GRE"
+    }
+  ],
+  "sliced": true,
+  "wordCount": 219,
+  "chunkSize": 100,
+  "chunkCount": 3,
+  "chunks": [
+    "chunk-000.json",
+    "chunk-001.json",
+    "chunk-002.json"
+  ]
+}
