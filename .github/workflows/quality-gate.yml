@@ -58,6 +58,9 @@ jobs:
       - name: Build
         run: pnpm run build
 
+      - name: Bundle size check
+        run: pnpm run bundle:size
+
   # Job 2: deploy（设计文档 §8.4：quality-gate 通过后部署到 Cloudflare Workers）
   # 适配 Next.js 16：使用 @opennextjs/cloudflare（替代旧 @cloudflare/next-on-pages）
   # 仅 main 分支 push 触发；PR 不部署
