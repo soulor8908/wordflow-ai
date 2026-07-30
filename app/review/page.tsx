@@ -5,11 +5,13 @@
  *
  * 两种学习模式：
  * 1. FSRS 复习模式（默认）：按算法安排到期卡片 + 每日新词
- *    - 三按钮：忘记/模糊/认识 → Again/Hard/Good；长按认识 = Easy
+ *    - 双按钮（乔布斯式简化）：不认识 / 认识
+ *    - 短按 = Again / Good；长按 = Hard / Easy（精细评价）
+ *    - 键盘 1/2/3/4 仍映射 Again/Hard/Good/Easy（保留老用户肌肉记忆）
  *    - 评分实时落库，影响后续复习调度
  * 2. 刷题模式：主动遍历整本词书，不受 FSRS 调度限制
  *    - 支持顺序 / 随机
- *    - 翻面后只前进/后退，不评分
+ *    - 翻面后可评分或直接标记掌握
  *    - 随时退出，不影响 FSRS 进度
  *
  * 公共特性：
@@ -18,7 +20,7 @@
  * - 中断友好：FSRS 模式每次反馈实时落库
  */
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { listDueCards, buildTodayQueue, type TodayQueueItem } from "@/lib/review/today-queue";
 import { getTodayNewWords, advanceCursor, getBookWords, loadBookMeta } from "@/lib/review/book-queue";
 import { submitReview, markWordAsMastered, type ReviewOutcome } from "@/lib/review/review-session";
@@ -43,6 +45,15 @@ import {
 } from "@/lib/review/review-session-cache";
 import { onReviewCompleted } from "@/lib/gamification/hooks";
 import { useGamification } from "@/components/gamification/gamification-provider";
+import type { BadgeRule } from "@/lib/gamification/badges";
+import {
+  getTodayQuest,
+  completedCount,
+  isReviewDone,
+  isCorrectDone,
+  isSearchedDone,
+} from "@/lib/gamification/daily-quests";
+import type { DailyQuestState } from "@/lib/gamification/types";
 
 type Mode = "fsrs" | "drill";
 type Phase = "loading" | "reviewing" | "done" | "no-book" | "error";
@@ -132,6 +143,9 @@ function FsrsReview() {
   const [submitting, setSubmitting] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  // 会话内累计：用于完成页正反馈爆发（XP / 徽章）
+  const [sessionXp, setSessionXp] = useState(0);
+  const [sessionBadges, setSessionBadges] = useState<BadgeRule[]>([]);
   const gamification = useGamification();
 
   // 构建今日队列（优先从缓存恢复，否则重建）
@@ -282,13 +296,18 @@ function FsrsReview() {
           wasNew: outcome.wasNew,
           queueLength: queue.length,
         })
-          .then((g) =>
+          .then((g) => {
+            // 会话内累计，供完成页爆发性正反馈使用
+            if (g.xpGained > 0) setSessionXp((x) => x + g.xpGained);
+            if (g.newBadges.length > 0) {
+              setSessionBadges((prev) => [...prev, ...g.newBadges]);
+            }
             gamification.notifyReview({
               xpGained: g.xpGained,
               questBonusXp: g.questBonusXp,
               newBadges: g.newBadges,
-            })
-          )
+            });
+          })
           .catch(() => {});
         const next = [...outcomes, outcome];
         setOutcomes(next);
@@ -378,7 +397,14 @@ function FsrsReview() {
   }
 
   if (phase === "done") {
-    return <DoneScreen outcomes={outcomes} loadError={loadError} />;
+    return (
+      <DoneScreen
+        outcomes={outcomes}
+        loadError={loadError}
+        sessionXp={sessionXp}
+        sessionBadges={sessionBadges}
+      />
+    );
   }
 
   if (phase === "error") {
@@ -471,46 +497,38 @@ function FsrsReview() {
         )}
       </div>
 
-      {/* 反馈按钮 */}
+      {/* 反馈按钮：双按钮 + 长按补档（乔布斯式"少即是多"） */}
       <div className="mt-4 flex shrink-0 flex-col gap-2 pb-2">
         {!flipped ? (
           <p className="text-center text-xs text-neutral-400">
             翻面后选择掌握程度
           </p>
         ) : (
-          <div className="grid grid-cols-4 gap-1.5">
+          <div className="grid grid-cols-2 gap-2">
             <RatingButton
-              label="忘记"
-              hint="1"
+              label="不认识"
+              shortHint="1"
+              longHint="2"
               color="red"
               disabled={submitting}
               onClick={() => handleRate("Again")}
-            />
-            <RatingButton
-              label="模糊"
-              hint="2"
-              color="amber"
-              disabled={submitting}
-              onClick={() => handleRate("Hard")}
+              onLongPress={() => handleRate("Hard")}
             />
             <RatingButton
               label="认识"
-              hint="3"
+              shortHint="3"
+              longHint="4"
               color="green"
               disabled={submitting}
               onClick={() => handleRate("Good")}
-            />
-            <RatingButton
-              label="Easy"
-              hint="4"
-              color="blue"
-              disabled={submitting}
-              onClick={() => handleRate("Easy")}
+              onLongPress={() => handleRate("Easy")}
             />
           </div>
         )}
         <p className="text-center text-xs text-neutral-400">
-          空格翻面 · 1-4 评分 · ←/→ 或左右滑切换
+          {flipped
+            ? "长按 = 更精细评价 · 键盘 1/2/3/4 同样可用"
+            : "空格翻面 · ←/→ 或左右滑切换"}
         </p>
       </div>
     </>
@@ -554,6 +572,9 @@ function DrillMode() {
   );
   const [masteredCount, setMasteredCount] = useState(drillSnap?.masteredCount ?? 0);
   const [activeBookId, setActiveBookId] = useState<string | null>(drillSnap?.activeBookId ?? null);
+  // 会话内累计：用于完成页正反馈爆发（XP / 徽章）
+  const [sessionXp, setSessionXp] = useState(0);
+  const [sessionBadges, setSessionBadges] = useState<BadgeRule[]>([]);
   const gamification = useGamification();
 
   // running 期间持续保存快照；done 时清除
@@ -713,13 +734,17 @@ function DrillMode() {
           wasNew: true,
           queueLength: words.length,
         })
-          .then((g) =>
+          .then((g) => {
+            if (g.xpGained > 0) setSessionXp((x) => x + g.xpGained);
+            if (g.newBadges.length > 0) {
+              setSessionBadges((prev) => [...prev, ...g.newBadges]);
+            }
             gamification.notifyReview({
               xpGained: g.xpGained,
               questBonusXp: g.questBonusXp,
               newBadges: g.newBadges,
-            })
-          )
+            });
+          })
           .catch(() => {});
         setOutcomes((prev) => [...prev, outcome]);
         setFlipped(false);
@@ -896,6 +921,11 @@ function DrillMode() {
             其中 {errors} 词答错，已加入 FSRS 复习队列
           </p>
         )}
+        {/* 会话总结：本次 XP / 任务进度 / 新徽章（爆发性正反馈） */}
+        <SessionSummary
+          sessionXp={sessionXp}
+          sessionBadges={sessionBadges}
+        />
         <div className="flex gap-3">
           <Button
             type="button"
@@ -1006,34 +1036,24 @@ function DrillMode() {
             翻面后选择掌握程度
           </p>
         ) : (
-          <div className="grid grid-cols-4 gap-1.5">
+          <div className="grid grid-cols-2 gap-2">
             <RatingButton
-              label="忘记"
-              hint="1"
+              label="不认识"
+              shortHint="1"
+              longHint="2"
               color="red"
               disabled={submitting}
               onClick={() => handleRate("Again")}
-            />
-            <RatingButton
-              label="模糊"
-              hint="2"
-              color="amber"
-              disabled={submitting}
-              onClick={() => handleRate("Hard")}
+              onLongPress={() => handleRate("Hard")}
             />
             <RatingButton
               label="认识"
-              hint="3"
+              shortHint="3"
+              longHint="4"
               color="green"
               disabled={submitting}
               onClick={() => handleRate("Good")}
-            />
-            <RatingButton
-              label="Easy"
-              hint="4"
-              color="blue"
-              disabled={submitting}
-              onClick={() => handleRate("Easy")}
+              onLongPress={() => handleRate("Easy")}
             />
           </div>
         )}
@@ -1072,7 +1092,9 @@ function DrillMode() {
           </div>
         </div>
         <p className="text-center text-xs text-neutral-400">
-          1-4 评分 · M 标记掌握 · S 跳过 · ←/→ 或左右滑切换
+          {flipped
+            ? "长按 = 更精细 · M 标记掌握 · S 跳过 · ←/→ 或左右滑切换"
+            : "空格翻面 · ←/→ 或左右滑切换"}
         </p>
       </div>
     </>
@@ -1155,25 +1177,72 @@ function CardBack({
 }
 
 type RatingColor = "red" | "amber" | "green" | "blue";
+/** 长按阈值：超过此时间视为长按（触发精细评价） */
+const RATING_LONG_PRESS_MS = 450;
+
 function RatingButton({
   label,
-  hint,
+  shortHint,
+  longHint,
   color,
   disabled,
   onClick,
-  onPointerDown,
-  onPointerUp,
-  onPointerLeave,
+  onLongPress,
 }: {
   label: string;
-  hint: string;
+  /** 短按对应的键盘数字（如 "1"） */
+  shortHint?: string;
+  /** 长按对应的键盘数字（如 "2"） */
+  longHint?: string;
   color: RatingColor;
   disabled: boolean;
   onClick: () => void;
-  onPointerDown?: () => void;
-  onPointerUp?: () => void;
-  onPointerLeave?: () => void;
+  onLongPress?: () => void;
 }) {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 长按是否已触发评分；用于在合成 click 时跳过短按
+  const triggeredRef = useRef(false);
+
+  const clearTimer = () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  const handlePointerDown = () => {
+    if (disabled) return;
+    triggeredRef.current = false;
+    if (onLongPress) {
+      clearTimer();
+      timerRef.current = setTimeout(() => {
+        triggeredRef.current = true;
+        onLongPress();
+        clearTimer();
+      }, RATING_LONG_PRESS_MS);
+    }
+  };
+
+  const handlePointerUp = () => {
+    clearTimer();
+  };
+
+  const handlePointerLeave = () => {
+    clearTimer();
+  };
+
+  const handleClick = () => {
+    if (disabled) return;
+    if (triggeredRef.current) {
+      // 长按已触发评分，不再触发短按
+      triggeredRef.current = false;
+      clearTimer();
+      return;
+    }
+    clearTimer();
+    onClick();
+  };
+
   const colorClasses: Record<RatingColor, string> = {
     red: "border-red-400 text-red-600 hover:bg-red-50 dark:hover:bg-red-950",
     amber:
@@ -1182,19 +1251,25 @@ function RatingButton({
       "border-green-400 text-green-600 hover:bg-green-50 dark:hover:bg-green-950",
     blue: "border-blue-400 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950",
   };
+
+  const hintText =
+    shortHint && longHint
+      ? `短按 ${shortHint} · 长按 ${longHint}`
+      : shortHint ?? longHint ?? "";
+
   return (
     <Button
       type="button"
-      onClick={onClick}
-      onPointerDown={onPointerDown}
-      onPointerUp={onPointerUp}
-      onPointerLeave={onPointerLeave}
+      onClick={handleClick}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerLeave={handlePointerLeave}
       disabled={disabled}
       variant="secondary"
-      className={`flex flex-col items-center gap-0.5 rounded-lg border-2 py-3 text-base font-medium transition-colors ${colorClasses[color]}`}
+      className={`flex flex-col items-center gap-0.5 rounded-lg border-2 py-4 text-base font-medium transition-colors ${colorClasses[color]}`}
     >
-      <span>{label}</span>
-      <span className="text-[10px] opacity-60">{hint}</span>
+      <span className="text-lg">{label}</span>
+      {hintText && <span className="text-[10px] opacity-60">{hintText}</span>}
     </Button>
   );
 }
@@ -1202,9 +1277,13 @@ function RatingButton({
 function DoneScreen({
   outcomes,
   loadError,
+  sessionXp,
+  sessionBadges,
 }: {
   outcomes: ReviewOutcome[];
   loadError: string | null;
+  sessionXp: number;
+  sessionBadges: BadgeRule[];
 }) {
   const reviewed = outcomes.length;
   const newCount = outcomes.filter((o) => o.wasNew).length;
@@ -1240,6 +1319,11 @@ function DoneScreen({
             <Stat label="认识" value={byRating.Good ?? 0} color="text-green-500" />
             <Stat label="Easy" value={byRating.Easy ?? 0} color="text-blue-500" />
           </div>
+          {/* 会话总结：本次 XP / 任务进度 / 新徽章（爆发性正反馈） */}
+          <SessionSummary
+            sessionXp={sessionXp}
+            sessionBadges={sessionBadges}
+          />
           <Encouragement reviewed={reviewed} newCount={newCount} />
           <p className="text-xs text-neutral-400">
             进度已实时保存，随时可退出
@@ -1253,6 +1337,85 @@ function DoneScreen({
         返回查词
       </Link>
     </main>
+  );
+}
+
+/**
+ * 会话总结卡片：完成页爆发性正反馈。
+ * 显示本次累计 XP / 每日任务实时进度 / 本次解锁徽章列表。
+ * 数据来源：父组件传入 sessionXp + sessionBadges；任务进度实时读 DB。
+ */
+function SessionSummary({
+  sessionXp,
+  sessionBadges,
+}: {
+  sessionXp: number;
+  sessionBadges: BadgeRule[];
+}) {
+  const [quest, setQuest] = useState<DailyQuestState | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getTodayQuest(0)
+      .then((q) => {
+        if (!cancelled) setQuest(q);
+      })
+      .catch(() => {
+        if (!cancelled) setQuest(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const questDone = quest ? completedCount(quest) : 0;
+  const allDone = quest
+    ? isReviewDone(quest) && isCorrectDone(quest) && isSearchedDone(quest)
+    : false;
+
+  return (
+    <section className="w-full max-w-md rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 px-4 py-3 dark:border-amber-900 dark:from-amber-950/40 dark:to-orange-950/40">
+      <div className="grid grid-cols-3 gap-2 text-center">
+        <div>
+          <p className="text-2xl font-bold text-amber-500">+{sessionXp}</p>
+          <p className="text-[10px] text-neutral-500">本次 XP</p>
+        </div>
+        <div>
+          <p className="text-2xl font-bold text-blue-500">
+            {questDone}
+            <span className="text-sm font-normal text-neutral-400">/3</span>
+          </p>
+          <p className="text-[10px] text-neutral-500">
+            {allDone ? "任务全完成" : "每日任务"}
+          </p>
+        </div>
+        <div>
+          <p className="text-2xl font-bold text-purple-500">
+            {sessionBadges.length}
+          </p>
+          <p className="text-[10px] text-neutral-500">新徽章</p>
+        </div>
+      </div>
+      {sessionBadges.length > 0 && (
+        <ul className="mt-3 flex flex-col gap-1.5">
+          {sessionBadges.map((b) => (
+            <li key={b.id} className="flex items-center gap-2 text-left">
+              <span className="text-lg" aria-hidden>
+                {b.icon}
+              </span>
+              <div className="flex flex-col">
+                <span className="text-xs font-medium text-neutral-700 dark:text-neutral-200">
+                  解锁徽章 · {b.name}
+                </span>
+                <span className="text-[10px] text-neutral-500">
+                  {b.description}
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 

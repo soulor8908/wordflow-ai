@@ -22,6 +22,7 @@ import {
   unfavoriteWord,
 } from "@/lib/review/favorite";
 import { onFavoriteAdded } from "@/lib/gamification/hooks";
+import { countByPrefix } from "@/lib/storage/db";
 import { loadSearchHistory } from "@/lib/search/search-history";
 import { useGamification } from "@/components/gamification/gamification-provider";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,8 @@ export default function WordPage({
   const [entry, setEntry] = useState<DictEntry | null | undefined>(undefined);
   const [favorited, setFavorited] = useState(false);
   const [toggling, setToggling] = useState(false);
+  // 新手引导：仅在用户从未收藏过任何词时显示"点右上角收藏"横幅
+  const [hasAnyFavorited, setHasAnyFavorited] = useState<boolean | null>(null);
   const { speak, speaking } = usePronunciation();
   const gamification = useGamification();
 
@@ -59,6 +62,14 @@ export default function WordPage({
     isFavorited(word).then((f) => {
       if (!cancelled) setFavorited(f);
     });
+    // 检查用户是否已收藏过任意词（决定是否展示新手引导横幅）
+    countByPrefix("card:")
+      .then((n) => {
+        if (!cancelled) setHasAnyFavorited(n > 0);
+      })
+      .catch(() => {
+        if (!cancelled) setHasAnyFavorited(false);
+      });
     return () => {
       cancelled = true;
     };
@@ -74,6 +85,8 @@ export default function WordPage({
       } else {
         await favoriteWord(word);
         setFavorited(true);
+        // 首次收藏后立即隐藏新手引导横幅
+        setHasAnyFavorited(true);
         // 游戏化副作用：+2 XP + "查词并收藏"任务 + 积累/探索类徽章
         // 失败静默，不影响收藏主流程
         const uniqueSearchCount = new Set(
@@ -144,6 +157,17 @@ export default function WordPage({
           )}
         </Button>
       </div>
+
+      {/* 新手引导横幅：仅在用户从未收藏过任何词时显示，首次收藏后立即消失 */}
+      {hasAnyFavorited === false && !favorited && (
+        <div
+          role="status"
+          className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300"
+        >
+          <span aria-hidden className="mr-1">👆</span>
+          点右上角「收藏入队」，明天开始复习这个单词
+        </div>
+      )}
 
       {/* 单词 + 音标 + 发音 */}
       <section className="flex flex-col gap-2">
