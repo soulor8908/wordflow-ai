@@ -41,6 +41,8 @@ import {
   saveReviewSession,
   type ReviewSessionCache,
 } from "@/lib/review/review-session-cache";
+import { onReviewCompleted } from "@/lib/gamification/hooks";
+import { useGamification } from "@/components/gamification/gamification-provider";
 
 type Mode = "fsrs" | "drill";
 type Phase = "loading" | "reviewing" | "done" | "no-book" | "error";
@@ -96,7 +98,7 @@ function ModeSwitcher({
               : "!text-neutral-500 hover:!text-neutral-700 dark:hover:!text-neutral-300"
           }`}
         >
-          今日复习
+          今日任务
         </Button>
         <Button
           type="button"
@@ -108,7 +110,7 @@ function ModeSwitcher({
               : "!text-neutral-500 hover:!text-neutral-700 dark:hover:!text-neutral-300"
           }`}
         >
-          刷题模式
+          自由练习
         </Button>
       </div>
       <Link href="/" className="text-xs text-neutral-400 hover:underline">
@@ -130,6 +132,7 @@ function FsrsReview() {
   const [submitting, setSubmitting] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  const gamification = useGamification();
 
   // 构建今日队列（优先从缓存恢复，否则重建）
   useEffect(() => {
@@ -272,6 +275,21 @@ function FsrsReview() {
         ).catch(() => {
           /* Streak 写入失败不阻塞复习主流程 */
         });
+        // 游戏化副作用：XP + 每日任务进度 + 徽章判定（设计文档 §5.5）
+        // 失败静默，绝不阻塞复习主流程（游戏化是甜点，不是主菜）
+        onReviewCompleted({
+          rating,
+          wasNew: outcome.wasNew,
+          queueLength: queue.length,
+        })
+          .then((g) =>
+            gamification.notifyReview({
+              xpGained: g.xpGained,
+              questBonusXp: g.questBonusXp,
+              newBadges: g.newBadges,
+            })
+          )
+          .catch(() => {});
         const next = [...outcomes, outcome];
         setOutcomes(next);
         setFlipped(false);
@@ -284,7 +302,7 @@ function FsrsReview() {
         setSubmitting(false);
       }
     },
-    [submitting, currentItem, flipped, outcomes, index, queue.length]
+    [submitting, currentItem, flipped, outcomes, index, queue.length, gamification]
   );
 
   const flip = useCallback(() => {
@@ -536,6 +554,7 @@ function DrillMode() {
   );
   const [masteredCount, setMasteredCount] = useState(drillSnap?.masteredCount ?? 0);
   const [activeBookId, setActiveBookId] = useState<string | null>(drillSnap?.activeBookId ?? null);
+  const gamification = useGamification();
 
   // running 期间持续保存快照；done 时清除
   useEffect(() => {
@@ -688,6 +707,20 @@ function DrillMode() {
             correctCount: correct,
           }
         ).catch(() => {});
+        // 游戏化副作用：XP + 每日任务 + 徽章（失败静默，不阻塞刷题）
+        onReviewCompleted({
+          rating,
+          wasNew: true,
+          queueLength: words.length,
+        })
+          .then((g) =>
+            gamification.notifyReview({
+              xpGained: g.xpGained,
+              questBonusXp: g.questBonusXp,
+              newBadges: g.newBadges,
+            })
+          )
+          .catch(() => {});
         setOutcomes((prev) => [...prev, outcome]);
         setFlipped(false);
         if (index + 1 >= words.length) {
@@ -699,7 +732,7 @@ function DrillMode() {
         setSubmitting(false);
       }
     },
-    [submitting, currentWord, flipped, wordOffsets, index, activeBookId, words.length]
+    [submitting, currentWord, flipped, wordOffsets, index, activeBookId, words.length, gamification]
   );
 
   // 长按"认识"= 直接标记已掌握（不评分，跳过 FSRS）
@@ -786,9 +819,9 @@ function DrillMode() {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-6 text-center">
         <div>
-          <h1 className="text-2xl font-bold">刷题模式</h1>
+          <h1 className="text-2xl font-bold">自由练习</h1>
           <p className="mt-2 text-sm text-neutral-500">
-            批量过词、标记已会词。评分会落库并影响 FSRS 进度，已掌握词不会再进复习队列
+            不限于今日任务，自由过整本词书。评分会记录并影响后续复习安排，已掌握的词不再出现
           </p>
         </div>
         {loadError && (
@@ -801,7 +834,7 @@ function DrillMode() {
             onChange={(e) => setFilterMastered(e.target.checked)}
             className="h-3.5 w-3.5"
           />
-          过滤已掌握的词（推荐）
+          跳过已掌握的词（推荐开启，专注还没学会的词）
         </label>
         <div className="flex w-full max-w-xs flex-col gap-2">
           <Button

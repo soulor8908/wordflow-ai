@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import BottomNav from "@/components/layout/bottom-nav";
 import AiAssistantLazy from "@/components/ai/ai-assistant-lazy";
+import { GamificationProvider } from "@/components/gamification/gamification-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -60,9 +61,11 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <div className="flex-1">{children}</div>
-        <BottomNav />
-        <AiAssistantLazy />
+        <GamificationProvider>
+          <div className="flex-1">{children}</div>
+          <BottomNav />
+          <AiAssistantLazy />
+        </GamificationProvider>
       </body>
     </html>
   );

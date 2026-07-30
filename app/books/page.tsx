@@ -34,6 +34,8 @@ export default function BooksPage() {
   const [books, setBooks] = useState<BookWithProgress[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [switching, setSwitching] = useState<string | null>(null);
+  // 待确认切换的词库（当前已有词库且有进度时，切换前需二次确认）
+  const [confirming, setConfirming] = useState<BookWithProgress | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -66,7 +68,19 @@ export default function BooksPage() {
     };
   }, []);
 
-  async function handleSelect(bookId: string) {
+  // 请求切换：当前已有词库且有学习进度时，先弹确认避免误触丢进度感知
+  function requestSelect(book: BookWithProgress) {
+    if (switching) return;
+    const current = books?.find((b) => b.isActive);
+    const currentHasProgress = (current?.progress?.cursor ?? 0) > 0;
+    if (current && current.id !== book.id && currentHasProgress) {
+      setConfirming(book);
+      return;
+    }
+    void doSwitch(book.id);
+  }
+
+  async function doSwitch(bookId: string) {
     if (switching) return;
     setSwitching(bookId);
     try {
@@ -76,6 +90,7 @@ export default function BooksPage() {
           ? prev.map((b) => ({ ...b, isActive: b.id === bookId }))
           : prev
       );
+      setConfirming(null);
       // 选完直接去复习页，确保学习闭环（选词库 → 立即开始学习）
       router.push("/review");
     } finally {
@@ -173,7 +188,7 @@ export default function BooksPage() {
                       variant="secondary"
                       size="sm"
                       disabled={switching === b.id}
-                      onClick={() => handleSelect(b.id)}
+                      onClick={() => requestSelect(b)}
                       className="text-xs"
                     >
                       {switching === b.id ? "切换中…" : "选这个"}
@@ -189,6 +204,77 @@ export default function BooksPage() {
       <div className="rounded-lg border border-dashed border-neutral-300 px-4 py-3 text-xs text-neutral-400 dark:border-neutral-700">
         更多词库（托福 / 雅思 / GRE / 自定义词库）开发中
       </div>
+
+      {/* 切换确认对话框：避免误触切换丢失对当前进度的感知 */}
+      {confirming && (
+        <SwitchConfirmDialog
+          target={confirming}
+          current={books.find((b) => b.isActive) ?? null}
+          switching={switching === confirming.id}
+          onCancel={() => setConfirming(null)}
+          onConfirm={() => void doSwitch(confirming.id)}
+        />
+      )}
     </main>
+  );
+}
+
+/** 词库切换确认对话框 */
+function SwitchConfirmDialog({
+  target,
+  current,
+  switching,
+  onCancel,
+  onConfirm,
+}: {
+  target: BookWithProgress;
+  current: BookWithProgress | null;
+  switching: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const currentLearned = current?.progress?.cursor ?? 0;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="switch-confirm-title"
+      onClick={onCancel}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl dark:bg-neutral-950"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 id="switch-confirm-title" className="text-base font-bold">
+          切换到《{target.name}》？
+        </h2>
+        <p className="mt-2 text-sm text-neutral-500">
+          {current
+            ? `当前《${current.name}》已学 ${currentLearned} 词，进度会保留。切换后今日新词将来自《${target.name}》。`
+            : `切换后今日新词将来自《${target.name}》。`}
+        </p>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onCancel}
+            disabled={switching}
+          >
+            取消
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            onClick={onConfirm}
+            disabled={switching}
+          >
+            {switching ? "切换中…" : "确认切换"}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }

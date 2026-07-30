@@ -17,6 +17,8 @@ import type { WordCard } from "@/lib/review/fsrs-scheduler";
 import { Button } from "@/components/ui/button";
 import { ChevronLeftIcon, ChevronRightIcon } from "@/components/ui/icons";
 import PwaSettings from "./pwa-settings";
+import DailyQuestCard from "@/components/gamification/daily-quest-card";
+import BadgeGallery from "@/components/gamification/badge-gallery";
 import {
   generateUserProfile,
   type UserProfile,
@@ -195,6 +197,12 @@ export default function StatsPage() {
           </div>
         )}
       </section>
+
+      {/* 每日任务 */}
+      <DailyQuestCard />
+
+      {/* 成就徽章画廊 */}
+      <BadgeGallery />
 
       {/* 热力图 */}
       <section className="rounded-lg border border-neutral-200 px-4 py-4 dark:border-neutral-800">

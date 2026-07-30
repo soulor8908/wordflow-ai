@@ -30,6 +30,8 @@ import {
   PlusIcon,
   SearchIcon,
 } from "@/components/ui/icons";
+import GamificationBar from "@/components/gamification/gamification-bar";
+import { useGamification } from "@/components/gamification/gamification-provider";
 
 // OnboardingDialog 仅首次访问使用，异步加载减小首屏 bundle
 const OnboardingDialog = dynamic(
@@ -54,6 +56,27 @@ export default function HomePage() {
   const [activeBookId, setActiveBookId] = useState<string | null>(null);
   const [activeBookName, setActiveBookName] = useState<string | null>(null);
   const [history, setHistory] = useState<string[]>(() => loadSearchHistory());
+  const gamification = useGamification();
+  // 词库选择弹窗（受控）：由"开始系统学习"引导卡片触发，不再强制自动弹出
+  const [showBookPicker, setShowBookPicker] = useState(false);
+
+  // 会话开始：同步 XP + 检测回归挽留（断签 ≥7 天赠送保护券）
+  useEffect(() => {
+    import("@/lib/gamification/hooks")
+      .then(({ onSessionStart }) => onSessionStart())
+      .then((r) => {
+        if (r.comebackDetected) {
+          gamification.notifyComeback({
+            gapDays: r.comebackGapDays,
+            shieldGifted: r.shieldGifted,
+          });
+        }
+      })
+      .catch(() => {
+        /* 游戏化初始化失败不影响首页 */
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // AI 搜索状态：内置词典无结果时自动调用 AI
   const [aiSearching, setAiSearching] = useState(false);
@@ -170,13 +193,19 @@ export default function HomePage() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-6 px-4 py-10 pb-24">
-      {/* 首次访问弹窗：检测未选词库时自动弹出 */}
-      <OnboardingDialog />
+      {/* 词库选择弹窗（受控）：由引导卡片触发，不强制弹出 */}
+      <OnboardingDialog
+        open={showBookPicker}
+        onClose={() => setShowBookPicker(false)}
+      />
 
       <header className="text-center">
         <h1 className="text-3xl font-bold tracking-tight">WordFlow</h1>
         <p className="mt-1 text-sm text-neutral-500">查词即背词 · 本地优先 · 离线可用</p>
       </header>
+
+      {/* 游戏化状态条：连胜 / XP / 每日任务（有数据时才显示） */}
+      <GamificationBar />
 
       {/* 当前词库显示 + 切换入口 */}
       {activeBookName && (
@@ -390,9 +419,51 @@ export default function HomePage() {
         </div>
       )}
 
+      {/* 未选词库时的系统学习引导（非阻塞）：先体验查词价值，再主动选择词书 */}
+      {activeBookId === null && dueCount !== null && (
+        <BookStarter onPick={() => setShowBookPicker(true)} />
+      )}
+
       {/* 首次访问引导：无查询 + 无待复习时展示三步上手 */}
       {showEmptyState && <GettingStarted />}
     </main>
+  );
+}
+
+/** 系统学习引导卡片：未选词库的新用户看到，一键开始或浏览词库 */
+function BookStarter({ onPick }: { onPick: () => void }) {
+  return (
+    <section className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 px-5 py-5 dark:border-blue-900 dark:from-blue-950/50 dark:to-indigo-950/50">
+      <div className="flex items-start gap-3">
+        <span className="text-2xl" aria-hidden>
+          📚
+        </span>
+        <div className="flex flex-1 flex-col gap-1">
+          <h2 className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">
+            想系统背一本词书吗？
+          </h2>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+            选一本词库（CET-4 / CET-6 / 高考 / 考研），每天自动安排新词与复习
+          </p>
+          <div className="mt-3 flex gap-2">
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={onPick}
+            >
+              选择词库开始
+            </Button>
+            <Link
+              href="/books"
+              className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-white dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-900"
+            >
+              先逛逛词库
+            </Link>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 

@@ -21,6 +21,9 @@ import {
   isFavorited,
   unfavoriteWord,
 } from "@/lib/review/favorite";
+import { onFavoriteAdded } from "@/lib/gamification/hooks";
+import { loadSearchHistory } from "@/lib/search/search-history";
+import { useGamification } from "@/components/gamification/gamification-provider";
 import { Button } from "@/components/ui/button";
 import {
   ChevronLeftIcon,
@@ -42,6 +45,7 @@ export default function WordPage({
   const [favorited, setFavorited] = useState(false);
   const [toggling, setToggling] = useState(false);
   const { speak, speaking } = usePronunciation();
+  const gamification = useGamification();
 
   useEffect(() => {
     let cancelled = false;
@@ -70,6 +74,20 @@ export default function WordPage({
       } else {
         await favoriteWord(word);
         setFavorited(true);
+        // 游戏化副作用：+2 XP + "查词并收藏"任务 + 积累/探索类徽章
+        // 失败静默，不影响收藏主流程
+        const uniqueSearchCount = new Set(
+          loadSearchHistory().map((w) => w.toLowerCase())
+        ).size;
+        onFavoriteAdded({ uniqueSearchCount })
+          .then((g) =>
+            gamification.notifyFavorite({
+              xpGained: g.xpGained,
+              questBonusXp: g.questBonusXp,
+              newBadges: g.newBadges,
+            })
+          )
+          .catch(() => {});
       }
     } finally {
       setToggling(false);

@@ -1,12 +1,14 @@
 "use client";
 
 /**
- * 首次访问词库选择弹窗（设计文档 §3.1：新手引导）
+ * 词库选择弹窗（受控组件）—— 设计文档 §3.1 新手引导重构版
  *
- * - 检测到用户未选词库时，在首页全屏弹窗
- * - 列出官方词库（CET-4/CET-6/高考/考研）
- * - 选定后写入 settings:active-book，关闭弹窗
- * - 允许"稍后再选"跳过，但下次进首页还会弹
+ * 乔布斯式取舍：不再"打开 App 就强制弹窗要求选词库"。
+ * 新用户应先体验"查词 → 收藏"的核心价值（magic moment），
+ * 再由首页的非阻塞引导卡片主动触发本弹窗。
+ *
+ * - open/onClose 由父组件控制，本组件不做自动检测
+ * - 选定后写入 settings:active-book，关闭弹窗并跳转 /review 开始学习
  */
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -15,53 +17,50 @@ import {
   BOOK_COLOR_CLASSES,
   type BookMeta,
 } from "@/lib/content/book-index";
-import { hasSelectedBook, setActiveBook } from "@/lib/review/active-book";
+import { setActiveBook } from "@/lib/review/active-book";
 import { Button } from "@/components/ui/button";
 
-export default function OnboardingDialog() {
+export default function OnboardingDialog({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
   const [books, setBooks] = useState<BookMeta[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selecting, setSelecting] = useState<string | null>(null);
 
+  // 仅在打开时加载词库列表（避免首页首屏无谓加载）
   useEffect(() => {
+    if (!open) return;
     let cancelled = false;
-    (async () => {
-      try {
-        const selected = await hasSelectedBook();
-        if (cancelled) return;
-        if (selected) return; // 已选过词库，不弹
-        const index = await loadBookIndex();
-        if (cancelled) return;
-        setBooks(index);
-        setOpen(true);
-      } catch (e) {
+    loadBookIndex()
+      .then((index) => {
+        if (!cancelled) setBooks(index);
+      })
+      .catch((e) => {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : "加载词库失败");
         }
-      }
-    })();
+      });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [open]);
 
   async function handleSelect(bookId: string) {
     if (selecting) return;
     setSelecting(bookId);
     try {
       await setActiveBook(bookId);
-      setOpen(false);
+      onClose();
       // 选完直接去复习页，开始学习闭环
       router.push("/review");
     } finally {
       setSelecting(null);
     }
-  }
-
-  function handleSkip() {
-    setOpen(false);
   }
 
   if (!open) return null;
@@ -72,8 +71,12 @@ export default function OnboardingDialog() {
       role="dialog"
       aria-modal="true"
       aria-labelledby="onboarding-title"
+      onClick={onClose}
     >
-      <div className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-neutral-950">
+      <div
+        className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-neutral-950"
+        onClick={(e) => e.stopPropagation()}
+      >
         <header className="flex flex-col gap-1 border-b border-neutral-100 px-5 py-4 dark:border-neutral-900">
           <h2 id="onboarding-title" className="text-lg font-bold">
             你想学什么？
@@ -131,7 +134,7 @@ export default function OnboardingDialog() {
             type="button"
             variant="ghost"
             size="sm"
-            onClick={handleSkip}
+            onClick={onClose}
             disabled={selecting !== null}
             className="text-xs"
           >
