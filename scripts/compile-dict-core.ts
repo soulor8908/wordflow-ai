@@ -2,7 +2,7 @@
  * 词典数据管线核心逻辑（设计文档 §4.2：compile-dict.ts）
  *
  * 输入：ECDICT CSV 行（RawEcdictRow）
- * 输出：按前缀切片的 JSON 文件（/dict/{letter}/{slice}.json，单片 <50KB）
+ * 输出：按前缀切片的 JSON 文件（/dict-data/{letter}/{slice}.json，单片 <50KB）
  *
  * 这里只实现可单测的纯函数；实际的 CSV 读取、文件写入由 compile-dict.ts 脚本完成。
  */
