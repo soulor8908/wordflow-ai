@@ -3,13 +3,13 @@
     {
       "id": "mom-core",
       "name": "宝妈亲子英语",
-      "description": "覆盖幼儿园到小学阶段的亲子英语词汇，帮助宝妈应对孩子提问",
+      "description": "覆盖幼儿园到小学阶段的亲子英语核心词汇（人教版PEP+启蒙200词+主题拓展），帮助宝妈应对孩子提问",
       "level": "亲子",
-      "wordCount": 207,
+      "wordCount": 395,
       "dailyNew": 10,
       "color": "amber",
       "sliced": true,
-      "chunkCount": 2
+      "chunkCount": 4
     },
     {
       "id": "cet4-core",
