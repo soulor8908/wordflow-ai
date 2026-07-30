@@ -16,16 +16,22 @@ const DEFAULT_FREE_MODEL = "deepseek-v4-flash";
 
 /**
  * 从环境变量构造免费通道 session。
- * 环境变量未配置时回退到内置默认，保证开箱即用。
+ *
+ * 注意：当前不读取 FREE_AI_API_KEY 环境变量——线上 Cloudflare Secret 中
+ * 配置的旧密钥已失效，且失效密钥的重试路径在 Worker 中引发 1101 崩溃。
+ * 始终使用内置默认密钥（经验证有效）。用户如需使用自己的 Key，
+ * 请通过 BYOK（设置页配置 API Key），走独立的 BYOK 通道。
+ *
+ * 如需恢复 env var 覆盖：先在 Cloudflare Dashboard 更新 Secret 为有效密钥，
+ * 然后把下面 apiKey 改回 `process.env.FREE_AI_API_KEY || DEFAULT_FREE_API_KEY`。
  */
 export function getFreeSession(): AiSessionConfig {
-  const apiKey = process.env.FREE_AI_API_KEY || DEFAULT_FREE_API_KEY;
   const provider =
     (process.env.FREE_AI_PROVIDER as AiSessionConfig["provider"]) ||
     DEFAULT_FREE_PROVIDER;
   return {
     provider,
-    apiKey,
+    apiKey: DEFAULT_FREE_API_KEY,
     baseURL: process.env.FREE_AI_BASE_URL || undefined,
     model: process.env.FREE_AI_MODEL || DEFAULT_FREE_MODEL,
   };
