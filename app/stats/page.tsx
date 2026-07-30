@@ -9,6 +9,7 @@
  * - 总卡片数：card: 前缀计数
  */
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { getStreak, listStudyLogs, type StudyLog } from "@/lib/stats/streak-io";
 import { getShield } from "@/lib/gamification/shield";
@@ -17,13 +18,34 @@ import { todayLocalDate } from "@/lib/review/book-queue";
 import type { WordCard } from "@/lib/review/fsrs-scheduler";
 import { Button } from "@/components/ui/button";
 import { ChevronLeftIcon, ChevronRightIcon, ShieldIcon } from "@/components/ui/icons";
-import PwaSettings from "./pwa-settings";
-import DailyQuestCard from "@/components/gamification/daily-quest-card";
-import BadgeGallery from "@/components/gamification/badge-gallery";
 import {
   generateUserProfile,
   type UserProfile,
 } from "@/lib/stats/user-profile";
+
+// 懒加载首屏以下的重组件，拆出独立 chunk，减小首屏 JS 体积
+const PwaSettings = dynamic(() => import("./pwa-settings"), {
+  loading: () => <LazySkeleton />,
+  ssr: false,
+});
+const DailyQuestCard = dynamic(
+  () => import("@/components/gamification/daily-quest-card"),
+  { loading: () => <LazySkeleton />, ssr: false }
+);
+const BadgeGallery = dynamic(
+  () => import("@/components/gamification/badge-gallery"),
+  { loading: () => <LazySkeleton />, ssr: false }
+);
+
+/** 懒加载占位骨架，与卡片圆角风格一致 */
+function LazySkeleton() {
+  return (
+    <section className="animate-pulse rounded-lg border border-neutral-200 px-4 py-4 dark:border-neutral-800">
+      <div className="mb-3 h-4 w-24 rounded bg-neutral-200 dark:bg-neutral-800" />
+      <div className="h-8 w-full rounded bg-neutral-100 dark:bg-neutral-900" />
+    </section>
+  );
+}
 
 interface ErrorWord {
   word: string;
