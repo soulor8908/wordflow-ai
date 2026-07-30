@@ -40,7 +40,7 @@ def step(name, ok, detail=""):
 
 with sync_playwright() as p:
     try:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(headless=True, channel="chromium")
     except Exception as e:
         print(f"✗ 无法启动 chromium：{e}")
         print("  请运行: playwright install chromium")
@@ -103,7 +103,8 @@ with sync_playwright() as p:
 
         # 精确定位主对话面板（aria-label="AI 助手对话"）
         dialog = page.locator('[role="dialog"][aria-label="AI 助手对话"]')
-        assistant_bubbles_before = dialog.locator('div.justify-start').count()
+        # assistant 消息容器用 items-start（flex-col），user 消息用 items-end
+        assistant_bubbles_before = dialog.locator('div.flex-col.items-start').count()
 
         input_el.first.fill("hello")
         send_btn = page.locator('button:has-text("发送")')
@@ -127,7 +128,7 @@ with sync_playwright() as p:
                 elif phase == "wait_reply":
                     # sending 动画消失 = 回复到达或出错
                     if pulse_count == 0:
-                        bubbles = dialog.locator('div.justify-start')
+                        bubbles = dialog.locator('div.flex-col.items-start')
                         if bubbles.count() > assistant_bubbles_before:
                             last_text = bubbles.last.inner_text().strip()
                             # 排除 sending 残留（含 ●）和用户消息
