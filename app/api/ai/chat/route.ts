@@ -304,19 +304,32 @@ export async function POST(request: NextRequest) {
 
   if (stream) {
     const quota: QuotaSnapshot = await consumeQuota(clientId);
-    // 在流前面插入 meta 行（含 quota），用 TransformStream 拼接
-    // 关键：writer 写入后必须 releaseLock，否则 pipeTo 会因锁冲突静默失败
+    // 手动合并流：meta 行 + AI 流内容（避免 TransformStream/pipeTo 在
+    // Cloudflare Workers 中的兼容性问题导致 1101 崩溃）
     const encoder = new TextEncoder();
     const metaLine = encoder.encode(JSON.stringify({ type: "meta", quota }) + "\n");
-    const { readable, writable } = new TransformStream();
-    const writer = writable.getWriter();
-    await writer.write(metaLine);
-    writer.releaseLock();
-    stream.pipeTo(writable).catch((err) => {
-      // 上游流错误时确保 readable 正常关闭，避免客户端挂起
-      console.error("[ai/chat] stream pipeTo failed:", err);
+    const aiReader = stream.getReader();
+    const finalStream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        // 先发 meta 行（含额度信息）
+        controller.enqueue(metaLine);
+        // 再逐块读取 AI 流并转发
+        try {
+          while (true) {
+            const { done, value } = await aiReader.read();
+            if (done) break;
+            controller.enqueue(value);
+          }
+        } catch (err) {
+          console.error("[ai/chat] stream read failed:", err);
+        }
+        controller.close();
+      },
+      cancel() {
+        aiReader.cancel().catch(() => {});
+      },
     });
-    return new Response(readable, {
+    return new Response(finalStream, {
       headers: {
         "Content-Type": "application/x-ndjson; charset=utf-8",
         "Cache-Control": "no-cache",
