@@ -435,9 +435,7 @@ function BookStarter({ onPick }: { onPick: () => void }) {
   return (
     <section className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 px-5 py-5 dark:border-blue-900 dark:from-blue-950/50 dark:to-indigo-950/50">
       <div className="flex items-start gap-3">
-        <span className="text-2xl" aria-hidden>
-          📚
-        </span>
+        <BookIcon className="h-7 w-7 shrink-0 text-blue-500" />
         <div className="flex flex-1 flex-col gap-1">
           <h2 className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">
             想系统背一本词书吗？

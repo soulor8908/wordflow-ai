@@ -19,6 +19,7 @@ import {
   isSearchedDone,
 } from "@/lib/gamification/daily-quests";
 import type { DailyQuestState } from "@/lib/gamification/types";
+import { CheckSquareIcon, SquareIcon } from "@/components/ui/icons";
 
 export default function DailyQuestCard() {
   const [quest, setQuest] = useState<DailyQuestState | null>(null);
@@ -107,7 +108,13 @@ function QuestRow({
                 : "text-neutral-600 group-hover:text-neutral-800 dark:text-neutral-400 dark:group-hover:text-neutral-200"
             }`}
           >
-            <span aria-hidden>{done ? "✅" : "⬜"}</span>
+            <span aria-hidden>
+              {done ? (
+                <CheckSquareIcon className="h-4 w-4 text-green-500" />
+              ) : (
+                <SquareIcon className="h-4 w-4 text-neutral-400" />
+              )}
+            </span>
             {label}
           </span>
           <span className="font-mono text-xs text-neutral-400">

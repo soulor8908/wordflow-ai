@@ -132,7 +132,11 @@ export interface BadgeRule {
   description: string;
   /** 是否隐藏（隐藏徽章解锁前显示 ???，仅显示类别） */
   hidden: boolean;
-  /** emoji 图标 */
+  /**
+   * 图标 key（非 emoji）—— 由 BadgeIcon 组件渲染为切面宝石勋章。
+   * 取值见 components/gamification/badge-icon.tsx 的 BadgeIconKey：
+   * flame / books / diamond / target / compass / bolt / sunrise / moon / book-open / trophy / keyhole
+   */
   icon: string;
   /** 判定函数：上下文 → 是否解锁 */
   check: (ctx: BadgeContext) => boolean;
@@ -159,7 +163,7 @@ export const BADGE_RULES: BadgeRule[] = [
     name: "一周之约",
     description: "连续学习 7 天",
     hidden: false,
-    icon: "🔥",
+    icon: "flame",
     check: (c) => (c.streak?.currentStreak ?? 0) >= 7,
     progress: (c) => ({ current: c.streak?.currentStreak ?? 0, target: 7 }),
   },
@@ -170,7 +174,7 @@ export const BADGE_RULES: BadgeRule[] = [
     name: "月度坚持",
     description: "连续学习 30 天",
     hidden: false,
-    icon: "🔥",
+    icon: "flame",
     check: (c) => (c.streak?.currentStreak ?? 0) >= 30,
     progress: (c) => ({ current: c.streak?.currentStreak ?? 0, target: 30 }),
   },
@@ -181,7 +185,7 @@ export const BADGE_RULES: BadgeRule[] = [
     name: "百日不辍",
     description: "连续学习 100 天",
     hidden: false,
-    icon: "🔥",
+    icon: "flame",
     check: (c) => (c.streak?.currentStreak ?? 0) >= 100,
     progress: (c) => ({ current: c.streak?.currentStreak ?? 0, target: 100 }),
   },
@@ -192,7 +196,7 @@ export const BADGE_RULES: BadgeRule[] = [
     name: "一年之约",
     description: "连续学习 365 天",
     hidden: false,
-    icon: "💎",
+    icon: "diamond",
     check: (c) => (c.streak?.currentStreak ?? 0) >= 365,
     progress: (c) => ({ current: c.streak?.currentStreak ?? 0, target: 365 }),
   },
@@ -205,7 +209,7 @@ export const BADGE_RULES: BadgeRule[] = [
     name: "百词斩",
     description: "累计学习 100 个词",
     hidden: false,
-    icon: "📚",
+    icon: "books",
     check: (c) => c.totalCards >= 100,
     progress: (c) => ({ current: c.totalCards, target: 100 }),
   },
@@ -216,7 +220,7 @@ export const BADGE_RULES: BadgeRule[] = [
     name: "词汇猎人",
     description: "累计学习 500 个词",
     hidden: false,
-    icon: "📚",
+    icon: "books",
     check: (c) => c.totalCards >= 500,
     progress: (c) => ({ current: c.totalCards, target: 500 }),
   },
@@ -227,7 +231,7 @@ export const BADGE_RULES: BadgeRule[] = [
     name: "词汇大师",
     description: "累计学习 2000 个词",
     hidden: false,
-    icon: "📚",
+    icon: "books",
     check: (c) => c.totalCards >= 2000,
     progress: (c) => ({ current: c.totalCards, target: 2000 }),
   },
@@ -238,7 +242,7 @@ export const BADGE_RULES: BadgeRule[] = [
     name: "词汇之神",
     description: "累计学习 5000 个词",
     hidden: false,
-    icon: "💎",
+    icon: "diamond",
     check: (c) => c.totalCards >= 5000,
     progress: (c) => ({ current: c.totalCards, target: 5000 }),
   },
@@ -251,7 +255,7 @@ export const BADGE_RULES: BadgeRule[] = [
     name: "精准七日",
     description: "连续 7 天正确率 ≥ 90%",
     hidden: false,
-    icon: "🎯",
+    icon: "target",
     check: (c) => c.consecutiveQualifiedDays >= 7,
     progress: (c) => ({ current: c.consecutiveQualifiedDays, target: 7 }),
   },
@@ -262,7 +266,7 @@ export const BADGE_RULES: BadgeRule[] = [
     name: "精准月度",
     description: "连续 30 天正确率 ≥ 90%",
     hidden: false,
-    icon: "🎯",
+    icon: "target",
     check: (c) => c.consecutiveQualifiedDays >= 30,
     progress: (c) => ({ current: c.consecutiveQualifiedDays, target: 30 }),
   },
@@ -273,7 +277,7 @@ export const BADGE_RULES: BadgeRule[] = [
     name: "完美主义",
     description: "单日复习 20+ 张且全部答对",
     hidden: false,
-    icon: "🎯",
+    icon: "target",
     check: (c) => {
       const log = c.todayLog;
       if (!log) return false;
@@ -296,7 +300,7 @@ export const BADGE_RULES: BadgeRule[] = [
     name: "初探",
     description: "查过 10 个不同的词",
     hidden: false,
-    icon: "🔍",
+    icon: "compass",
     check: (c) => c.uniqueSearchCount >= 10,
     progress: (c) => ({ current: c.uniqueSearchCount, target: 10 }),
   },
@@ -307,7 +311,7 @@ export const BADGE_RULES: BadgeRule[] = [
     name: "好奇之心",
     description: "查过 50 个不同的词",
     hidden: false,
-    icon: "🔍",
+    icon: "compass",
     check: (c) => c.uniqueSearchCount >= 50,
     progress: (c) => ({ current: c.uniqueSearchCount, target: 50 }),
   },
@@ -318,7 +322,7 @@ export const BADGE_RULES: BadgeRule[] = [
     name: "博学者",
     description: "查过 200 个不同的词",
     hidden: false,
-    icon: "🔍",
+    icon: "compass",
     check: (c) => c.uniqueSearchCount >= 200,
     progress: (c) => ({ current: c.uniqueSearchCount, target: 200 }),
   },
@@ -329,7 +333,7 @@ export const BADGE_RULES: BadgeRule[] = [
     name: "万卷书",
     description: "查过 1000 个不同的词",
     hidden: false,
-    icon: "🔍",
+    icon: "compass",
     check: (c) => c.uniqueSearchCount >= 1000,
     progress: (c) => ({ current: c.uniqueSearchCount, target: 1000 }),
   },
@@ -342,7 +346,7 @@ export const BADGE_RULES: BadgeRule[] = [
     name: "单日突破",
     description: "单日学习 50+ 张卡片",
     hidden: false,
-    icon: "⚡",
+    icon: "bolt",
     check: (c) => {
       const log = c.todayLog;
       if (!log) return false;
@@ -361,7 +365,7 @@ export const BADGE_RULES: BadgeRule[] = [
     name: "单日达人",
     description: "单日学习 100+ 张卡片",
     hidden: false,
-    icon: "⚡",
+    icon: "bolt",
     check: (c) => {
       const log = c.todayLog;
       if (!log) return false;
@@ -380,7 +384,7 @@ export const BADGE_RULES: BadgeRule[] = [
     name: "早起鸟",
     description: "在早上 5-7 点学习累计 7 天",
     hidden: false,
-    icon: "🌅",
+    icon: "sunrise",
     check: (c) => c.earlyBirdDays >= 7,
     progress: (c) => ({ current: Math.min(c.earlyBirdDays, 7), target: 7 }),
   },
@@ -391,7 +395,7 @@ export const BADGE_RULES: BadgeRule[] = [
     name: "夜猫子",
     description: "在深夜 23-5 点学习累计 7 天",
     hidden: false,
-    icon: "🌙",
+    icon: "moon",
     check: (c) => c.nightOwlDays >= 7,
     progress: (c) => ({ current: Math.min(c.nightOwlDays, 7), target: 7 }),
   },
@@ -404,7 +408,7 @@ export const BADGE_RULES: BadgeRule[] = [
     name: "词书四分之一",
     description: "完成词书的 25%",
     hidden: false,
-    icon: "📖",
+    icon: "book-open",
     check: (c) => c.bookProgress >= 0.25,
     progress: (c) => ({ current: Math.min(Math.round(c.bookProgress * 100), 25), target: 25 }),
   },
@@ -415,7 +419,7 @@ export const BADGE_RULES: BadgeRule[] = [
     name: "过半",
     description: "完成词书的 50%",
     hidden: false,
-    icon: "📖",
+    icon: "book-open",
     check: (c) => c.bookProgress >= 0.5,
     progress: (c) => ({ current: Math.min(Math.round(c.bookProgress * 100), 50), target: 50 }),
   },
@@ -426,7 +430,7 @@ export const BADGE_RULES: BadgeRule[] = [
     name: "词书通关",
     description: "完成整本词书",
     hidden: false,
-    icon: "📖",
+    icon: "book-open",
     check: (c) => c.bookProgress >= 1,
     progress: (c) => ({ current: Math.min(Math.round(c.bookProgress * 100), 100), target: 100 }),
   },
@@ -439,7 +443,7 @@ export const BADGE_RULES: BadgeRule[] = [
     name: "初窥门径",
     description: "掌握 50 个词（V4 通过）",
     hidden: false,
-    icon: "🏆",
+    icon: "trophy",
     check: (c) => c.masteredCount >= 50,
     progress: (c) => ({ current: c.masteredCount, target: 50 }),
   },
@@ -450,7 +454,7 @@ export const BADGE_RULES: BadgeRule[] = [
     name: "登堂入室",
     description: "掌握 200 个词",
     hidden: false,
-    icon: "🏆",
+    icon: "trophy",
     check: (c) => c.masteredCount >= 200,
     progress: (c) => ({ current: c.masteredCount, target: 200 }),
   },
@@ -461,7 +465,7 @@ export const BADGE_RULES: BadgeRule[] = [
     name: "炉火纯青",
     description: "掌握 1000 个词",
     hidden: false,
-    icon: "🏆",
+    icon: "trophy",
     check: (c) => c.masteredCount >= 1000,
     progress: (c) => ({ current: c.masteredCount, target: 1000 }),
   },
@@ -474,7 +478,7 @@ export const BADGE_RULES: BadgeRule[] = [
     name: "王者归来",
     description: "???",
     hidden: true,
-    icon: "❓",
+    icon: "keyhole",
     check: (c) => c.comebackGapDays >= 30,
     progress: () => null,
   },
@@ -485,7 +489,7 @@ export const BADGE_RULES: BadgeRule[] = [
     name: "守护者",
     description: "???",
     hidden: true,
-    icon: "❓",
+    icon: "keyhole",
     check: (c) => c.shieldUsedTotal >= 5,
     progress: (c) => ({ current: Math.min(c.shieldUsedTotal, 5), target: 5 }),
   },
@@ -496,7 +500,7 @@ export const BADGE_RULES: BadgeRule[] = [
     name: "留白日",
     description: "???",
     hidden: true,
-    icon: "❓",
+    icon: "keyhole",
     check: (c) => {
       const log = c.todayLog;
       if (!log) return false;
@@ -598,7 +602,7 @@ export interface BadgeView {
 /**
  * 构造徽章视图列表（用于统计页"成就"区块展示）。
  *
- * 隐藏徽章解锁前：name = "???"，description = "???"，icon = "❓"
+ * 隐藏徽章解锁前：name = "???"，description = "???"，icon = "keyhole"
  * 隐藏徽章解锁后：显示真实信息
  */
 export async function buildBadgeViews(
@@ -614,7 +618,7 @@ export async function buildBadgeViews(
     const masked = rule.hidden && !unlocked;
     return {
       rule: masked
-        ? { ...rule, name: "???", description: "隐藏徽章，待你发现", icon: "❓" }
+        ? { ...rule, name: "???", description: "隐藏徽章，待你发现", icon: "keyhole" }
         : rule,
       unlocked,
       unlockedAt: unlockedAtMap.get(rule.id) ?? null,

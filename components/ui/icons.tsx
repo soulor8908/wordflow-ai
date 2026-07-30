@@ -256,3 +256,120 @@ export function CheckIcon(props: IconProps) {
     </Base>
   );
 }
+
+/** 火焰（连胜） */
+export function FlameIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <path d="M12 2c0 4-6 5-6 11a6 6 0 0 0 12 0c0-3-2-5-3-7 0 2-1 3-2 3 0-3 0-5-1-7z" />
+      <path d="M12 18a2 2 0 0 1-2-2c0-1 1-2 2-3 1 1 2 2 2 3a2 2 0 0 1-2 2z" />
+    </Base>
+  );
+}
+
+/** 盾牌（连胜保护券） */
+export function ShieldIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <path d="M12 2l8 3v6c0 5-3.5 8.5-8 11-4.5-2.5-8-6-8-11V5z" />
+      <polyline points="9 12 11 14 15 10" />
+    </Base>
+  );
+}
+
+/** 靶心（精度 / 任务） */
+export function TargetIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="5" />
+      <circle cx="12" cy="12" r="1" />
+    </Base>
+  );
+}
+
+/** 指南针（探索） */
+export function CompassIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <polygon points="15 9 13 13 9 15 11 11" />
+    </Base>
+  );
+}
+
+/** 日出（早起鸟） */
+export function SunriseIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <path d="M3 18h18" />
+      <path d="M7 14a5 5 0 0 1 10 0" />
+      <line x1="12" y1="3" x2="12" y2="6" />
+      <line x1="5" y1="9" x2="6.5" y2="10.5" />
+      <line x1="19" y1="9" x2="17.5" y2="10.5" />
+      <line x1="2" y1="22" x2="22" y2="22" />
+    </Base>
+  );
+}
+
+/** 月牙（夜猫子） */
+export function MoonIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <path d="M20 13.5A8 8 0 1 1 10.5 4a6.5 6.5 0 0 0 9.5 9.5z" />
+    </Base>
+  );
+}
+
+/** 钻石（稀有度） */
+export function DiamondIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <path d="M12 2l8 7-8 13L4 9z" />
+      <path d="M4 9h16" />
+      <path d="M12 2v20" />
+      <path d="M8 9l4-7 4 7" />
+    </Base>
+  );
+}
+
+/** 钥匙孔（隐藏徽章） */
+export function KeyholeIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <circle cx="12" cy="9" r="3" />
+      <path d="M12 12v7" />
+      <path d="M10 19h4" />
+    </Base>
+  );
+}
+
+/** 已勾选方框（任务完成） */
+export function CheckSquareIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <rect x="3" y="3" width="18" height="18" rx="3" />
+      <polyline points="8 12 11 15 16 9" />
+    </Base>
+  );
+}
+
+/** 空方框（任务未完成） */
+export function SquareIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <rect x="3" y="3" width="18" height="18" rx="3" />
+    </Base>
+  );
+}
+
+/** 挥手（回归挽留） */
+export function WaveIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <path d="M4 12a3 3 0 0 1 3-3 3 3 0 0 1 3 3v3" />
+      <path d="M10 12a3 3 0 0 1 3-3 3 3 0 0 1 3 3v2" />
+      <path d="M16 13a3 3 0 0 1 3-3 3 3 0 0 1 1 2v2a6 6 0 0 1-6 6h-3a8 8 0 0 1-8-8" />
+    </Base>
+  );
+}

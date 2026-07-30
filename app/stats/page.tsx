@@ -16,7 +16,7 @@ import { countByPrefix, listItemsByPrefix } from "@/lib/storage/db";
 import { todayLocalDate } from "@/lib/review/book-queue";
 import type { WordCard } from "@/lib/review/fsrs-scheduler";
 import { Button } from "@/components/ui/button";
-import { ChevronLeftIcon, ChevronRightIcon } from "@/components/ui/icons";
+import { ChevronLeftIcon, ChevronRightIcon, ShieldIcon } from "@/components/ui/icons";
 import PwaSettings from "./pwa-settings";
 import DailyQuestCard from "@/components/gamification/daily-quest-card";
 import BadgeGallery from "@/components/gamification/badge-gallery";
@@ -167,7 +167,7 @@ export default function StatsPage() {
         title="断签 1 天自动消耗 1 张保住连胜；每连续 7 天获得 1 张，最多持有 2 张"
       >
         <div className="flex items-center gap-2">
-          <span className="text-xl" aria-hidden>🛡️</span>
+          <ShieldIcon className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
           <div>
             <p className="text-sm font-medium text-cyan-700 dark:text-cyan-300">
               连胜保护券

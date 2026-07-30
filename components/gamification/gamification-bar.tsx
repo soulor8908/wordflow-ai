@@ -18,6 +18,7 @@ import { getShield } from "@/lib/gamification/shield";
 import { getXp, levelFromXp, xpToNextLevel, LEVELS } from "@/lib/gamification/xp";
 import { getTodayQuest } from "@/lib/gamification/daily-quests";
 import { completedCount } from "@/lib/gamification/daily-quests";
+import { FlameIcon, ShieldIcon, BoltIcon, TargetIcon } from "@/components/ui/icons";
 
 interface BarData {
   streakDays: number;
@@ -78,7 +79,7 @@ export default function GamificationBar() {
       aria-label="查看学习成就与统计"
     >
       <span className="flex items-center gap-1 font-medium text-orange-600 dark:text-orange-400">
-        <span aria-hidden>🔥</span>
+        <FlameIcon className="h-4 w-4" />
         <span>{data.streakDays} 天</span>
       </span>
       {/* 保护券：仅在持有 >0 时展示，避免新用户看到 0 张的困惑 */}
@@ -87,12 +88,12 @@ export default function GamificationBar() {
           className="flex items-center gap-1 font-medium text-cyan-600 dark:text-cyan-400"
           title={`连胜保护券 ${data.shieldCount} 张：断签 1 天自动保住连胜`}
         >
-          <span aria-hidden>🛡️</span>
+          <ShieldIcon className="h-4 w-4" />
           <span>{data.shieldCount}</span>
         </span>
       )}
       <span className="flex items-center gap-1 font-medium text-amber-600 dark:text-amber-400">
-        <span aria-hidden>⚡</span>
+        <BoltIcon className="h-4 w-4" />
         <span>
           {data.levelName}
           {!isMaxLevel && toNext > 0 && (
@@ -103,7 +104,7 @@ export default function GamificationBar() {
         </span>
       </span>
       <span className="flex items-center gap-1 font-medium text-blue-600 dark:text-blue-400">
-        <span aria-hidden>🎯</span>
+        <TargetIcon className="h-4 w-4" />
         <span>
           任务 {data.questDone}/{data.questTotal}
         </span>

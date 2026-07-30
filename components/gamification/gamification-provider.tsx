@@ -26,7 +26,8 @@ import {
 import type { BadgeRule } from "@/lib/gamification/badges";
 import { RARITY_LABEL } from "@/lib/gamification/badges";
 import { Button } from "@/components/ui/button";
-import { CloseIcon } from "@/components/ui/icons";
+import { CloseIcon, TargetIcon, WaveIcon, ShieldIcon } from "@/components/ui/icons";
+import { BadgeIcon } from "@/components/gamification/badge-icon";
 
 /** 单条 toast */
 interface ToastItem {
@@ -200,7 +201,7 @@ function ToastView({ item, onClose }: { item: ToastItem; onClose: () => void }) 
 
       {item.kind === "quest" && (
         <div className="flex items-center gap-2">
-          <span className="text-lg">🎯</span>
+          <TargetIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
           <div className="flex flex-col">
             <p className="text-sm font-bold text-blue-600 dark:text-blue-400">
               每日任务全部完成
@@ -215,7 +216,12 @@ function ToastView({ item, onClose }: { item: ToastItem; onClose: () => void }) 
           <div className="flex flex-col gap-2">
             {item.badges.map((b) => (
               <div key={b.id} className="flex items-center gap-2.5">
-                <span className="text-2xl">{b.icon}</span>
+                <BadgeIcon
+                  iconKey={b.icon}
+                  rarity={b.rarity}
+                  unlocked
+                  className="h-8 w-8"
+                />
                 <div className="flex flex-col">
                   <p className="text-sm font-bold text-neutral-800 dark:text-neutral-100">
                     解锁徽章 · {b.name}
@@ -242,7 +248,7 @@ function ToastView({ item, onClose }: { item: ToastItem; onClose: () => void }) 
 
       {item.kind === "comeback" && (
         <div className="flex items-center gap-2.5">
-          <span className="text-2xl">👋</span>
+          <WaveIcon className="h-6 w-6 text-amber-500" />
           <div className="flex flex-col">
             <p className="text-sm font-bold text-neutral-800 dark:text-neutral-100">
               欢迎回来
@@ -257,7 +263,7 @@ function ToastView({ item, onClose }: { item: ToastItem; onClose: () => void }) 
 
       {item.kind === "shield" && (
         <div className="flex items-center gap-2.5">
-          <span className="text-2xl">🛡️</span>
+          <ShieldIcon className="h-6 w-6 text-cyan-500" />
           <div className="flex flex-col">
             {item.shieldKind === "consumed" ? (
               <>

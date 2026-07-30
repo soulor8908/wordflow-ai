@@ -22,6 +22,7 @@ import {
 } from "@/lib/gamification/badges";
 import { computeBadgeStats, type BadgeStats } from "@/lib/gamification/badge-stats";
 import { buildBadgeContext } from "@/lib/gamification/hooks";
+import { BadgeIcon } from "@/components/gamification/badge-icon";
 
 /** 类别展示顺序 */
 const ORDER: BadgeCategory[] = [
@@ -140,9 +141,13 @@ function BadgeCell({ view }: { view: BadgeView }) {
             : `${rule.description}`
       }
     >
-      <span className={`text-xl ${unlocked ? "" : "grayscale"}`}>
-        {rule.icon}
-      </span>
+      <BadgeIcon
+        iconKey={rule.icon}
+        rarity={rule.rarity}
+        unlocked={unlocked}
+        masked={masked}
+        className="h-10 w-10"
+      />
       <span
         className={`w-full truncate text-[10px] font-medium ${
           unlocked ? "" : "text-neutral-500 dark:text-neutral-400"

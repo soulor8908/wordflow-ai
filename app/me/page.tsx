@@ -36,6 +36,7 @@ import {
   ChevronRightIcon,
   RefreshIcon,
   RobotIcon,
+  FlameIcon,
 } from "@/components/ui/icons";
 import {
   exportSyncBundle,
@@ -94,7 +95,7 @@ export default function MePage() {
         className="flex items-center justify-between rounded-xl border border-neutral-200 px-4 py-3 transition-colors hover:border-blue-300 hover:bg-blue-50/50 dark:border-neutral-800 dark:hover:border-blue-700 dark:hover:bg-blue-950/30"
       >
         <div className="flex items-center gap-3">
-          <span className="text-2xl" aria-hidden>🔥</span>
+          <FlameIcon className="h-7 w-7 text-orange-500" />
           <div>
             <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
               学习统计
