@@ -73,11 +73,12 @@ async function bundleWorker() {
     format: "esm",
     target: "es2022",
     platform: "neutral",
+    absWorkingDir: "/workspace",
     outfile: "/workspace/.worker-bundle.js",
     minify: true,
     keepNames: true,
     sourcemap: false,
-    logLevel: "warning",
+    logLevel: "debug",
     define: { "navigator.userAgent": '"Cloudflare-Workers"' },
     external: ["node:*", "cloudflare:*", ...NODE_BARE_BUILTINS],
   });

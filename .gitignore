@@ -50,3 +50,8 @@ next-env.d.ts
 .wrangler
 .dev.vars*
 !.dev.vars.example
+
+# Cloudflare Pages direct upload artifacts
+.pages-manifest.json
+.deploy-body.bin
+.worker-bundle.js
