@@ -27,6 +27,10 @@ import {
   loadBookMeta,
   todayLocalDate,
 } from "@/lib/review/book-queue";
+import { favoriteWord, isFavorited } from "@/lib/review/favorite";
+import { onFavoriteAdded } from "@/lib/gamification/hooks";
+import { loadSearchHistory } from "@/lib/search/search-history";
+import { useGamification } from "@/components/gamification/gamification-provider";
 import {
   listSessions,
   getSessionMessages,
@@ -72,6 +76,49 @@ interface QuotaSnapshot {
 const CLIENT_ID_KEY = "wordflow:ai-client-id";
 const FAB_POS_KEY = "wordflow:ai-fab-pos";
 const AI_FETCH_TIMEOUT_MS = 70_000;
+
+/**
+ * 从 AI 回复中提取可收藏的英文单词候选（闭环：AI 推荐 → 一键收藏 → 明天复习）。
+ *
+ * 规则：
+ * - 匹配长度 2-20 的纯字母 token（含连字符的复合词如 give-up）
+ * - 排除常见停用词（the/and/is/are/you/with 等高频功能词）
+ * - 排除明显非单词的 token（全大写缩写如 AI/CEO 保留，但排除单字母）
+ * - 去重 + 最多取 8 个，避免按钮列表过长
+ */
+const AI_WORD_STOPWORDS = new Set([
+  "the", "a", "an", "and", "or", "but", "is", "are", "was", "were", "be",
+  "been", "being", "have", "has", "had", "do", "does", "did", "will",
+  "would", "could", "should", "may", "might", "can", "shall", "to", "of",
+  "in", "on", "at", "by", "for", "with", "about", "as", "into", "from",
+  "that", "this", "these", "those", "it", "its", "they", "them", "their",
+  "there", "here", "what", "which", "who", "whom", "when", "where", "why",
+  "how", "all", "each", "every", "some", "any", "both", "few", "more",
+  "most", "other", "such", "no", "not", "only", "own", "same", "so",
+  "than", "too", "very", "just", "also", "if", "then", "else", "because",
+  "while", "you", "your", "yours", "i", "me", "my", "we", "us", "our",
+  "he", "him", "his", "she", "her", "hers", "word", "words", "example",
+  "meaning", "means", "mean", "let", "lets", "use", "used", "using",
+  "like", "via", "per", "etc", "vs", "see", "seen", "say", "said",
+  "one", "two", "three", "first", "second", "third", "yes", "no",
+  "ai", "ceo", "ceo", "usa", "uk", "eu",
+]);
+
+function extractCollectibleWords(text: string): string[] {
+  const matches = text.match(/\b[a-zA-Z][a-zA-Z-]{1,19}\b/g) ?? [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const raw of matches) {
+    const lower = raw.toLowerCase();
+    if (AI_WORD_STOPWORDS.has(lower)) continue;
+    if (lower.length < 2 || lower.length > 20) continue;
+    if (seen.has(lower)) continue;
+    seen.add(lower);
+    result.push(lower);
+    if (result.length >= 8) break;
+  }
+  return result;
+}
 
 function fetchWithTimeout(
   input: string,
@@ -573,6 +620,11 @@ export default function AiAssistant() {
 
   // ── 消息操作：复制 / 刷新 / 删除 ──
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const gamification = useGamification();
+  // 已收藏词状态：word -> true，用于按钮文案切换 + 已收藏去重
+  const [favoritedSet, setFavoritedSet] = useState<Set<string>>(new Set());
+  // 正在收藏中的词（避免重复点击）
+  const [favoritingSet, setFavoritingSet] = useState<Set<string>>(new Set());
 
   /** 复制单条消息内容到剪贴板 */
   async function handleCopyMessage(idx: number) {
@@ -594,6 +646,46 @@ export default function AiAssistant() {
       document.body.removeChild(ta);
       setCopiedIdx(idx);
       setTimeout(() => setCopiedIdx(null), 1500);
+    }
+  }
+
+  /**
+   * 一键收藏 AI 回复中提到的单词（闭环：AI 推荐 → 一键收藏 → 明天复习）。
+   * 失败静默，已收藏则跳过，复用词条页的游戏化反馈链路。
+   */
+  async function handleFavoriteWord(word: string) {
+    const w = word.toLowerCase();
+    if (favoritedSet.has(w) || favoritingSet.has(w)) return;
+    setFavoritingSet((s) => new Set(s).add(w));
+    try {
+      const already = await isFavorited(w);
+      if (already) {
+        setFavoritedSet((s) => new Set(s).add(w));
+        return;
+      }
+      await favoriteWord(w, "ai-assistant");
+      setFavoritedSet((s) => new Set(s).add(w));
+      // 游戏化副作用：+2 XP + 任务进度 + 徽章（与词条页收藏一致）
+      const uniqueSearchCount = new Set(
+        loadSearchHistory().map((x) => x.toLowerCase())
+      ).size;
+      onFavoriteAdded({ uniqueSearchCount })
+        .then((g) =>
+          gamification.notifyFavorite({
+            xpGained: g.xpGained,
+            questBonusXp: g.questBonusXp,
+            newBadges: g.newBadges,
+          })
+        )
+        .catch(() => {});
+    } catch {
+      /* 收藏失败静默，不影响 AI 对话主流程 */
+    } finally {
+      setFavoritingSet((s) => {
+        const next = new Set(s);
+        next.delete(w);
+        return next;
+      });
     }
   }
 
@@ -1291,6 +1383,39 @@ export default function AiAssistant() {
                     </Button>
                   </div>
                 )}
+                {/* 收藏相关词：从 AI 回复中提取英文单词，一键加入复习队列 */}
+                {m.role === "assistant" && m.content && (() => {
+                  const words = extractCollectibleWords(m.content);
+                  if (words.length === 0) return null;
+                  return (
+                    <div className="mt-1 flex flex-wrap gap-1 px-1">
+                      <span className="self-center text-[10px] text-neutral-400">
+                        收藏相关词：
+                      </span>
+                      {words.map((w) => {
+                        const fav = favoritedSet.has(w);
+                        const busy = favoritingSet.has(w);
+                        return (
+                          <Button
+                            key={w}
+                            type="button"
+                            variant="plain"
+                            onClick={() => handleFavoriteWord(w)}
+                            disabled={fav || busy}
+                            className={`rounded-full border px-2 py-0.5 text-[10px] font-mono !shadow-none transition-colors ${
+                              fav
+                                ? "!border-green-300 !bg-green-50 !text-green-600 dark:!border-green-800 dark:!bg-green-950 dark:!text-green-400"
+                                : "!border-neutral-300 !text-neutral-600 hover:!border-blue-400 hover:!bg-blue-50 hover:!text-blue-600 dark:!border-neutral-700 dark:!text-neutral-300 dark:hover:!border-blue-600 dark:hover:!bg-blue-950 dark:hover:!text-blue-400"
+                            }`}
+                            title={fav ? "已在复习队列" : `收藏 ${w}，明天开始复习`}
+                          >
+                            {fav ? `✓ ${w}` : `+ ${w}`}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
             ))}
 

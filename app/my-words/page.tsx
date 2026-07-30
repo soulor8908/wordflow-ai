@@ -1,12 +1,15 @@
 "use client";
 
 /**
- * 我的词库页面（AI 搜索入库的单词列表）
+ * AI 生词本页面（AI 搜索入库的单词列表）
  *
  * - 展示所有通过 AI 搜索自动入库的单词
  * - 点击单词跳转词条页
  * - 支持删除
  * - 显示入库时间
+ *
+ * 命名说明：曾叫"我的词库"，但与底部 Tab 的"词库"(/books 官方词书)
+ * 概念完全不同，易造成用户混淆。现更名为"AI 生词本"，明确是 AI 查过的词。
  */
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -66,8 +69,8 @@ export default function MyWordsPage() {
 
       <header className="flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-xl font-bold">
-          <BookIcon title="我的词库" className="h-5 w-5 text-blue-500" />
-          我的词库
+          <BookIcon title="AI 生词本" className="h-5 w-5 text-blue-500" />
+          AI 生词本
         </h1>
         <span className="text-xs text-neutral-400">
           {words.length > 0 ? `${words.length} 个单词` : ""}
@@ -75,7 +78,7 @@ export default function MyWordsPage() {
       </header>
 
       <p className="text-xs text-neutral-500">
-        通过 AI 搜索自动入库的单词会保存在这里，离线可查
+        AI 搜索自动入库的单词保存在这里，离线可查
       </p>
 
       {loading ? (

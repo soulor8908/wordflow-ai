@@ -224,15 +224,15 @@ export default function HomePage() {
         </Link>
       )}
 
-      {/* 词库入口：我的词库 + 全量词库 */}
+      {/* 词库入口：AI 生词本 + 词典浏览 */}
       <div className="flex gap-2">
         <Link
           href="/my-words"
           className="flex flex-1 items-center justify-between rounded-lg border border-neutral-200 px-3 py-2 text-xs text-neutral-600 hover:bg-neutral-50 dark:border-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-900"
         >
           <span className="flex items-center gap-1.5">
-            <BookIcon title="我的词库" className="h-3.5 w-3.5 text-blue-500" />
-            我的词库
+            <BookIcon title="AI 生词本" className="h-3.5 w-3.5 text-blue-500" />
+            AI 生词本
           </span>
           <ChevronRightIcon className="h-3.5 w-3.5" />
         </Link>
@@ -241,8 +241,8 @@ export default function HomePage() {
           className="flex flex-1 items-center justify-between rounded-lg border border-neutral-200 px-3 py-2 text-xs text-neutral-600 hover:bg-neutral-50 dark:border-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-900"
         >
           <span className="flex items-center gap-1.5">
-            <SearchIcon title="全量词库" className="h-3.5 w-3.5 text-blue-500" />
-            全量词库
+            <SearchIcon title="词典浏览" className="h-3.5 w-3.5 text-blue-500" />
+            词典浏览
           </span>
           <ChevronRightIcon className="h-3.5 w-3.5" />
         </Link>

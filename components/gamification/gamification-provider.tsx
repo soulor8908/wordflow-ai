@@ -31,7 +31,7 @@ import { CloseIcon } from "@/components/ui/icons";
 /** 单条 toast */
 interface ToastItem {
   id: number;
-  kind: "xp" | "badges" | "quest" | "comeback";
+  kind: "xp" | "badges" | "quest" | "comeback" | "shield";
   /** xp / quest 共用 */
   xpAmount?: number;
   /** badges */
@@ -39,6 +39,10 @@ interface ToastItem {
   /** comeback */
   gapDays?: number;
   shieldGifted?: boolean;
+  /** shield: consumed=消耗保护券保住连胜 / earned=获得新保护券 */
+  shieldKind?: "consumed" | "earned";
+  /** shield 消耗时的连胜天数 */
+  streakDays?: number;
 }
 
 interface GamificationContextValue {
@@ -56,6 +60,11 @@ interface GamificationContextValue {
   }) => void;
   /** 回归挽留 */
   notifyComeback: (r: { gapDays: number; shieldGifted: boolean }) => void;
+  /** 保护券变动：消耗保住连胜 / 获得新保护券 */
+  notifyShield: (r: {
+    kind: "consumed" | "earned";
+    streakDays?: number;
+  }) => void;
 }
 
 const GamificationContext = createContext<GamificationContextValue | null>(null);
@@ -68,6 +77,7 @@ export function useGamification(): GamificationContextValue {
       notifyReview: () => {},
       notifyFavorite: () => {},
       notifyComeback: () => {},
+      notifyShield: () => {},
     };
   }
   return ctx;
@@ -150,9 +160,19 @@ export function GamificationProvider({ children }: { children: ReactNode }) {
     [push]
   );
 
+  const notifyShield = useCallback(
+    (r: { kind: "consumed" | "earned"; streakDays?: number }) => {
+      push(
+        { kind: "shield", shieldKind: r.kind, streakDays: r.streakDays },
+        4000
+      );
+    },
+    [push]
+  );
+
   return (
     <GamificationContext.Provider
-      value={{ notifyReview, notifyFavorite, notifyComeback }}
+      value={{ notifyReview, notifyFavorite, notifyComeback, notifyShield }}
     >
       {children}
       {/* Toast 容器：顶部居中，不遮挡底部导航 */}
@@ -231,6 +251,33 @@ function ToastView({ item, onClose }: { item: ToastItem; onClose: () => void }) 
               好久不见（{item.gapDays} 天）
               {item.shieldGifted ? "，送你 1 张连胜保护券" : "，继续加油"}
             </p>
+          </div>
+        </div>
+      )}
+
+      {item.kind === "shield" && (
+        <div className="flex items-center gap-2.5">
+          <span className="text-2xl">🛡️</span>
+          <div className="flex flex-col">
+            {item.shieldKind === "consumed" ? (
+              <>
+                <p className="text-sm font-bold text-neutral-800 dark:text-neutral-100">
+                  连胜保护券已使用
+                </p>
+                <p className="text-xs text-neutral-500">
+                  保住 {item.streakDays ?? 0} 天连胜，明天继续加油
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-bold text-neutral-800 dark:text-neutral-100">
+                  解锁新的连胜保护券
+                </p>
+                <p className="text-xs text-neutral-500">
+                  每 7 天连续学习获得 1 张，最多持有 2 张
+                </p>
+              </>
+            )}
           </div>
         </div>
       )}

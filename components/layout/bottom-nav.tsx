@@ -25,7 +25,12 @@ const NAV_ITEMS: NavItem[] = [
     href: "/",
     label: "查词",
     icon: <SearchIcon className="h-5 w-5" />,
-    match: (p) => p === "/" || p.startsWith("/word/"),
+    // 查词 Tab 覆盖：首页、词条、AI 生词本、词典浏览（均为查词衍生场景）
+    match: (p) =>
+      p === "/" ||
+      p.startsWith("/word/") ||
+      p.startsWith("/my-words") ||
+      p.startsWith("/dict"),
   },
   {
     href: "/review",

@@ -2,28 +2,33 @@
  * 免费通道共享配置（chat / word-lookup 两路由共用）。
  *
  * 设计：
- * - 优先使用环境变量（Cloudflare Pages Secret / Dashboard 环境变量）
- * - 回退到内置默认密钥（DeepSeek 开放平台，开箱即用）
- * - 当环境变量密钥鉴权失败（401）时，自动回退到内置默认密钥重试
- *   （场景：Secret 中配置的旧密钥失效，代码内置默认密钥仍有效）
+ * - 优先使用环境变量 FREE_AI_API_KEY（Cloudflare Pages Secret / Dashboard 环境变量）
+ * - 未配置环境变量时降级到内置占位密钥，并标记 isUsingEnvKey=false
+ *   （部署时必须配置 Secret，否则免费通道不可用）
+ * - 当环境变量密钥鉴权失败（401）时，不再尝试内置密钥重试——
+ *   硬编码密钥已下线，请确保 Cloudflare Secret 中配置的密钥有效
+ *
+ * ⚠️ 安全说明：曾经在此文件硬编码过 DeepSeek API Key，已删除。
+ *   任何 API Key 必须通过环境变量注入，禁止再以明文形式提交到代码库。
  */
 import type { AiSessionConfig } from "@/lib/ai/provider";
 
-/** 内置默认免费密钥（DeepSeek 开放平台，开箱即用） */
-export const DEFAULT_FREE_API_KEY = "sk-17340d9fd1be4eec9e56470e8e087d4a";
+/**
+ * 占位密钥：仅在未配置 FREE_AI_API_KEY 时使用，触发上游 401 后由调用方走 fallback 文案。
+ * 部署时务必在 Cloudflare Pages → Settings → Environment variables 配置 FREE_AI_API_KEY。
+ */
+const PLACEHOLDER_API_KEY = "placeholder-please-configure-FREE_AI_API_KEY";
+
 const DEFAULT_FREE_PROVIDER: AiSessionConfig["provider"] = "deepseek";
 const DEFAULT_FREE_MODEL = "deepseek-v4-flash";
 
 /**
  * 从环境变量构造免费通道 session。
  *
- * 注意：当前不读取 FREE_AI_API_KEY 环境变量——线上 Cloudflare Secret 中
- * 配置的旧密钥已失效，且失效密钥的重试路径在 Worker 中引发 1101 崩溃。
- * 始终使用内置默认密钥（经验证有效）。用户如需使用自己的 Key，
- * 请通过 BYOK（设置页配置 API Key），走独立的 BYOK 通道。
- *
- * 如需恢复 env var 覆盖：先在 Cloudflare Dashboard 更新 Secret 为有效密钥，
- * 然后把下面 apiKey 改回 `process.env.FREE_AI_API_KEY || DEFAULT_FREE_API_KEY`。
+ * 部署 checklist：
+ * 1. Cloudflare Pages → Settings → Environment variables 添加 FREE_AI_API_KEY
+ * 2. （可选）FREE_AI_PROVIDER / FREE_AI_BASE_URL / FREE_AI_MODEL 覆盖默认值
+ * 3. 未配置 FREE_AI_API_KEY 时，免费通道将返回 401，前端走 fallback 文案
  */
 export function getFreeSession(): AiSessionConfig {
   const provider =
@@ -31,21 +36,23 @@ export function getFreeSession(): AiSessionConfig {
     DEFAULT_FREE_PROVIDER;
   return {
     provider,
-    apiKey: DEFAULT_FREE_API_KEY,
+    apiKey: process.env.FREE_AI_API_KEY || PLACEHOLDER_API_KEY,
     baseURL: process.env.FREE_AI_BASE_URL || undefined,
     model: process.env.FREE_AI_MODEL || DEFAULT_FREE_MODEL,
   };
 }
 
-/** session 是否使用环境变量配置的密钥（非内置默认） */
+/** session 是否使用环境变量配置的密钥（非占位符） */
 export function isUsingEnvKey(session: AiSessionConfig): boolean {
-  return !!process.env.FREE_AI_API_KEY && session.apiKey !== DEFAULT_FREE_API_KEY;
+  return (
+    !!process.env.FREE_AI_API_KEY && session.apiKey === process.env.FREE_AI_API_KEY
+  );
 }
 
 /**
- * 构造使用内置默认密钥的 session（用于 env 密钥鉴权失败时回退重试）。
+ * 构造使用占位密钥的 session（用于 env 密钥鉴权失败时回退，触发 fallback 文案）。
  * 保留 provider/baseURL/model 配置，只替换 apiKey。
  */
 export function getDefaultKeySession(session: AiSessionConfig): AiSessionConfig {
-  return { ...session, apiKey: DEFAULT_FREE_API_KEY };
+  return { ...session, apiKey: PLACEHOLDER_API_KEY };
 }

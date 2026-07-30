@@ -4,17 +4,19 @@
  * 我的页（设计文档 §3.4：设置与统计入口）
  *
  * 整合：
- * - 学习总览（Streak + 卡片总数 + 今日数据）
- * - 我的卡片（按状态分类：待复习 / 已掌握 / 学习中）
+ * - 学习总览入口（跳转 /stats 查看完整统计，避免与 /stats 数据重复）
  * - AI 配置（BYOK：provider / apiKey / baseURL / model + 测试连接）
  * - 云端同步（导出 / 导入 JSON 备份，含用户画像与学习习惯）
- * - 通知与离线设置（PwaSettings）
+ * - 本地词库加载状态
+ *
+ * 信息架构说明（与 /stats 分工）：
+ * - /stats：Streak / 热力图 / 今日数据 / 徽章 / 任务 / 常错词 / 画像 / PWA 设置
+ * - /me：设置类内容（AI 配置 / 云同步 / 词库状态），不再重复展示统计数字
+ *   "学习总览"卡片仅作入口，点击跳转 /stats 查看详情
  */
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { getStreak } from "@/lib/stats/streak-io";
-import type { KVRecord } from "@/lib/storage/db";
-import type { WordCard } from "@/lib/review/fsrs-scheduler";
 import type { StreakState } from "@/lib/stats/streak";
 import {
   getAiConfig,
@@ -35,7 +37,6 @@ import {
   RefreshIcon,
   RobotIcon,
 } from "@/components/ui/icons";
-import PwaSettings from "@/app/stats/pwa-settings";
 import {
   exportSyncBundle,
   importSyncBundle,
@@ -45,45 +46,8 @@ import {
   type SyncBundle,
 } from "@/lib/sync/cloud-sync";
 
-type CardStatus = "due" | "learning" | "mastered";
-
-interface CardWithMeta extends WordCard {
-  /** 从 KVRecord.updatedAt 透传，用于排序 */
-  _updatedAt?: string;
-}
-
-interface CardStat {
-  total: number;
-  byStatus: Record<CardStatus, number>;
-  recent: CardWithMeta[];
-}
-
-function classifyCard(card: WordCard, now: Date): CardStatus {
-  // WordCard.state 是字符串："New" | "Learning" | "Review" | "Relearning"
-  // mastered 通过 verification 字段判断（V4 验证通过）
-  if (card.verification === "mastered") return "mastered";
-  const due = card.due ? new Date(card.due) : null;
-  if (due && due <= now) return "due";
-  return "learning";
-}
-
-/** 列出卡片并附带 KVRecord 的 updatedAt（用于排序） */
-async function listCardsWithMeta(): Promise<CardWithMeta[]> {
-  const db = (await import("@/lib/storage/db")).getDb;
-  const dexie = await db();
-  const records = (await dexie.kv
-    .where("prefix")
-    .equals("card:")
-    .toArray()) as KVRecord[];
-  return records.map((r) => ({
-    ...(r.value as WordCard),
-    _updatedAt: r.updatedAt,
-  }));
-}
-
 export default function MePage() {
   const [streak, setStreak] = useState<StreakState | null>(null);
-  const [cardStat, setCardStat] = useState<CardStat | null>(null);
   const [aiConfig, setAiConfigState] = useState<AiConfig | null>(null);
   const [loaded, setLoaded] = useState(false);
 
@@ -91,34 +55,12 @@ export default function MePage() {
     let cancelled = false;
     (async () => {
       try {
-        const [s, cards, ai] = await Promise.all([
+        const [s, ai] = await Promise.all([
           getStreak(),
-          listCardsWithMeta(),
           getAiConfig(),
         ]);
         if (cancelled) return;
-        const now = new Date();
-        const byStatus: Record<CardStatus, number> = {
-          due: 0,
-          learning: 0,
-          mastered: 0,
-        };
-        for (const c of cards) {
-          byStatus[classifyCard(c, now)]++;
-        }
         setStreak(s ?? null);
-        setCardStat({
-          total: cards.length,
-          byStatus,
-          recent: cards
-            .slice()
-            .sort(
-              (a, b) =>
-                new Date(b._updatedAt ?? 0).getTime() -
-                new Date(a._updatedAt ?? 0).getTime()
-            )
-            .slice(0, 5),
-        });
         setAiConfigState(ai);
       } finally {
         if (!cancelled) setLoaded(true);
@@ -142,108 +84,30 @@ export default function MePage() {
       <header>
         <h1 className="text-2xl font-bold tracking-tight">我的</h1>
         <p className="mt-1 text-sm text-neutral-500">
-          管理你的学习数据、AI 配置与通知偏好
+          管理 AI 配置、云同步与词库；统计详情见「学习统计」
         </p>
       </header>
 
-      {/* 学习总览（点击跳转统计详情页） */}
+      {/* 学习总览入口：精简为单行跳转，避免与 /stats 重复展示统计数字 */}
       <Link
         href="/stats"
-        className="block rounded-xl border border-neutral-200 px-4 py-4 transition-colors hover:border-blue-300 hover:bg-blue-50/50 dark:border-neutral-800 dark:hover:border-blue-700 dark:hover:bg-blue-950/30"
+        className="flex items-center justify-between rounded-xl border border-neutral-200 px-4 py-3 transition-colors hover:border-blue-300 hover:bg-blue-50/50 dark:border-neutral-800 dark:hover:border-blue-700 dark:hover:bg-blue-950/30"
       >
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-            学习总览
-          </h2>
-          <span className="flex items-center gap-0.5 text-xs text-blue-600 dark:text-blue-400">
-            查看统计 <ChevronRightIcon className="h-3.5 w-3.5" />
-          </span>
-        </div>
-        <div className="grid grid-cols-4 gap-3 text-center">
-          <Stat
-            label="连续天数"
-            value={streak?.currentStreak ?? 0}
-            color="text-orange-500"
-          />
-          <Stat
-            label="最长记录"
-            value={streak?.longestStreak ?? 0}
-            color="text-purple-500"
-          />
-          <Stat
-            label="卡片总数"
-            value={cardStat?.total ?? 0}
-            color="text-blue-500"
-          />
-          <Stat
-            label="待复习"
-            value={cardStat?.byStatus.due ?? 0}
-            color="text-red-500"
-          />
-        </div>
-      </Link>
-
-      {/* 我的卡片 */}
-      <section className="rounded-xl border border-neutral-200 px-4 py-4 dark:border-neutral-800">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-            我的卡片
-          </h2>
-          {cardStat && cardStat.total > 0 && (
-            <Link
-              href="/review"
-              className="text-xs text-blue-600 hover:underline"
-            >
-              去复习 <ChevronRightIcon className="h-4 w-4 inline" />
-            </Link>
-          )}
-        </div>
-        {cardStat && cardStat.total > 0 ? (
-          <>
-            <div className="mb-3 flex gap-2 text-xs">
-              <span className="rounded-full bg-red-50 px-2 py-0.5 text-red-600 dark:bg-red-950">
-                待复习 {cardStat.byStatus.due}
-              </span>
-              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-600 dark:bg-amber-950">
-                学习中 {cardStat.byStatus.learning}
-              </span>
-              {/* "已掌握"通过刷题模式中长按"认识"标记，仅在 > 0 时展示，避免未学用户看到误导性的死 UI */}
-              {cardStat.byStatus.mastered > 0 && (
-                <span className="rounded-full bg-green-50 px-2 py-0.5 text-green-600 dark:bg-green-950">
-                  已掌握 {cardStat.byStatus.mastered}
-                </span>
-              )}
-            </div>
-            <ul className="flex flex-col gap-1.5">
-              {cardStat.recent.map((c) => (
-                <li key={c.word}>
-                  <Link
-                    href={`/word/${encodeURIComponent(c.word)}`}
-                    className="flex items-center justify-between rounded-lg bg-neutral-50 px-3 py-2 text-sm hover:bg-neutral-100 dark:bg-neutral-900 dark:hover:bg-neutral-800"
-                  >
-                    <span className="font-mono">{c.word}</span>
-                    <span className="text-[10px] text-neutral-400">
-                      {c._updatedAt
-                        ? new Date(c._updatedAt).toLocaleDateString("zh-CN")
-                        : "—"}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </>
-        ) : (
-          <div className="flex flex-col items-center gap-2 py-6 text-center">
-            <p className="text-sm text-neutral-500">还没有卡片</p>
-            <Link
-              href="/books"
-              className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
-            >
-              去选词库
-            </Link>
+        <div className="flex items-center gap-3">
+          <span className="text-2xl" aria-hidden>🔥</span>
+          <div>
+            <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+              学习统计
+            </p>
+            <p className="text-xs text-neutral-500">
+              {streak && streak.currentStreak > 0
+                ? `当前连续 ${streak.currentStreak} 天`
+                : "查看连胜、热力图、徽章与常错词"}
+            </p>
           </div>
-        )}
-      </section>
+        </div>
+        <ChevronRightIcon className="h-4 w-4 text-neutral-400" />
+      </Link>
 
       {/* AI 高级设置（可选）：默认已开箱即用，此处仅供高级用户自定义 */}
       <AiConfigSection
@@ -258,27 +122,7 @@ export default function MePage() {
 
       {/* 本地词库加载状态（检查 + 重新加载） */}
       <DictStatusSection />
-
-      {/* 通知与离线 */}
-      <PwaSettings />
     </main>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  color,
-}: {
-  label: string;
-  value: number;
-  color: string;
-}) {
-  return (
-    <div className="flex flex-col">
-      <p className={`text-xl font-bold ${color}`}>{value}</p>
-      <p className="text-[10px] text-neutral-500">{label}</p>
-    </div>
   );
 }
 

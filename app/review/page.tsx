@@ -26,7 +26,7 @@ import { getTodayNewWords, advanceCursor, getBookWords, loadBookMeta } from "@/l
 import { submitReview, markWordAsMastered, type ReviewOutcome } from "@/lib/review/review-session";
 import { findEntry, type DictEntry } from "@/lib/dict/dict-loader";
 import type { Rating } from "@/lib/review/fsrs-scheduler";
-import { recordStudy } from "@/lib/stats/streak-io";
+import { recordStudy, type RecordStudyResult } from "@/lib/stats/streak-io";
 import { todayLocalDate } from "@/lib/review/book-queue";
 import { getActiveBook } from "@/lib/review/active-book";
 import { getItem, listItemsByPrefix } from "@/lib/storage/db";
@@ -279,7 +279,7 @@ function FsrsReview() {
       try {
         const outcome = await submitReview(currentItem, rating, "standard");
         const correct = rating === "Good" || rating === "Easy" ? 1 : 0;
-        await recordStudy(
+        const studyResult = await recordStudy(
           todayLocalDate(),
           {
             newCount: outcome.wasNew ? 1 : 0,
@@ -288,7 +288,18 @@ function FsrsReview() {
           }
         ).catch(() => {
           /* Streak 写入失败不阻塞复习主流程 */
+          return null as RecordStudyResult | null;
         });
+        // 保护券变动提示（消耗保住连胜 / 获得新保护券）
+        if (studyResult?.shieldConsumed) {
+          gamification.notifyShield({
+            kind: "consumed",
+            streakDays: studyResult.currentStreak,
+          });
+        }
+        if (studyResult?.shieldEarned) {
+          gamification.notifyShield({ kind: "earned" });
+        }
         // 游戏化副作用：XP + 每日任务进度 + 徽章判定（设计文档 §5.5）
         // 失败静默，绝不阻塞复习主流程（游戏化是甜点，不是主菜）
         onReviewCompleted({
@@ -720,14 +731,24 @@ function DrillMode() {
         }
         // Streak 累加
         const correct = rating === "Good" || rating === "Easy" ? 1 : 0;
-        await recordStudy(
+        const drillStudyResult = await recordStudy(
           todayLocalDate(),
           {
             newCount: 1,
             reviewCount: 0,
             correctCount: correct,
           }
-        ).catch(() => {});
+        ).catch(() => null as RecordStudyResult | null);
+        // 保护券变动提示
+        if (drillStudyResult?.shieldConsumed) {
+          gamification.notifyShield({
+            kind: "consumed",
+            streakDays: drillStudyResult.currentStreak,
+          });
+        }
+        if (drillStudyResult?.shieldEarned) {
+          gamification.notifyShield({ kind: "earned" });
+        }
         // 游戏化副作用：XP + 每日任务 + 徽章（失败静默，不阻塞刷题）
         onReviewCompleted({
           rating,
@@ -777,10 +798,19 @@ function DrillMode() {
         const filtered = filterMasteredFromFsrsCache(cached.fsrs, mastered);
         saveReviewSession({ ...cached, fsrs: filtered });
       }
-      await recordStudy(
+      const masteredStudyResult = await recordStudy(
         todayLocalDate(),
         { newCount: 1, reviewCount: 0, correctCount: 1 }
-      ).catch(() => {});
+      ).catch(() => null as RecordStudyResult | null);
+      if (masteredStudyResult?.shieldConsumed) {
+        gamification.notifyShield({
+          kind: "consumed",
+          streakDays: masteredStudyResult.currentStreak,
+        });
+      }
+      if (masteredStudyResult?.shieldEarned) {
+        gamification.notifyShield({ kind: "earned" });
+      }
       setMasteredCount((n) => n + 1);
       setFlipped(false);
       if (index + 1 >= words.length) {
@@ -791,7 +821,7 @@ function DrillMode() {
     } finally {
       setSubmitting(false);
     }
-  }, [submitting, currentWord, wordOffsets, index, activeBookId, words.length]);
+  }, [submitting, currentWord, wordOffsets, index, activeBookId, words.length, gamification]);
 
   const goPrev = useCallback(() => {
     if (index === 0 || submitting) return;

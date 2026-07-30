@@ -11,6 +11,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getStreak, listStudyLogs, type StudyLog } from "@/lib/stats/streak-io";
+import { getShield } from "@/lib/gamification/shield";
 import { countByPrefix, listItemsByPrefix } from "@/lib/storage/db";
 import { todayLocalDate } from "@/lib/review/book-queue";
 import type { WordCard } from "@/lib/review/fsrs-scheduler";
@@ -32,6 +33,7 @@ interface ErrorWord {
 
 interface StatsData {
   streak: { currentStreak: number; longestStreak: number } | null;
+  shieldCount: number;
   todayLog: StudyLog | null;
   totalCards: number;
   logs: StudyLog[];
@@ -47,11 +49,12 @@ export default function StatsPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [streak, logs, totalCards, cards] = await Promise.all([
+        const [streak, logs, totalCards, cards, shield] = await Promise.all([
           getStreak(),
           listStudyLogs(),
           countByPrefix("card:"),
           listItemsByPrefix<WordCard>("card:"),
+          getShield(),
         ]);
         if (cancelled) return;
         const today = todayLocalDate();
@@ -73,6 +76,7 @@ export default function StatsPage() {
                 longestStreak: streak.longestStreak,
               }
             : null,
+          shieldCount: shield.shields,
           todayLog,
           totalCards,
           logs,
@@ -155,6 +159,28 @@ export default function StatsPage() {
             <span className="ml-1 text-sm font-normal text-neutral-400">天</span>
           </p>
         </div>
+      </section>
+
+      {/* 连胜保护券：让用户看到自己持有的保护券，理解"偶尔断签也不会清零" */}
+      <section
+        className="flex items-center justify-between rounded-lg border border-cyan-200 bg-cyan-50/50 px-4 py-3 dark:border-cyan-900 dark:bg-cyan-950/30"
+        title="断签 1 天自动消耗 1 张保住连胜；每连续 7 天获得 1 张，最多持有 2 张"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-xl" aria-hidden>🛡️</span>
+          <div>
+            <p className="text-sm font-medium text-cyan-700 dark:text-cyan-300">
+              连胜保护券
+            </p>
+            <p className="text-[10px] text-neutral-500">
+              断签 1 天自动保住连胜
+            </p>
+          </div>
+        </div>
+        <p className="text-2xl font-bold text-cyan-600 dark:text-cyan-400">
+          {data.shieldCount}
+          <span className="ml-1 text-xs font-normal text-neutral-400">张</span>
+        </p>
       </section>
 
       {/* 今日数据 */}

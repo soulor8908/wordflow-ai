@@ -14,6 +14,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getStreak } from "@/lib/stats/streak-io";
+import { getShield } from "@/lib/gamification/shield";
 import { getXp, levelFromXp, xpToNextLevel, LEVELS } from "@/lib/gamification/xp";
 import { getTodayQuest } from "@/lib/gamification/daily-quests";
 import { completedCount } from "@/lib/gamification/daily-quests";
@@ -25,6 +26,7 @@ interface BarData {
   levelTier: number;
   questDone: number;
   questTotal: number;
+  shieldCount: number;
 }
 
 export default function GamificationBar() {
@@ -34,11 +36,12 @@ export default function GamificationBar() {
     let cancelled = false;
     (async () => {
       try {
-        const [streak, xp, quest] = await Promise.all([
+        const [streak, xp, quest, shield] = await Promise.all([
           getStreak(),
           getXp(),
           // queueLength 传 0 仅用于读取已有任务（不会创建时影响 target）
           getTodayQuest(0),
+          getShield(),
         ]);
         if (cancelled) return;
         const level = levelFromXp(xp.total);
@@ -49,6 +52,7 @@ export default function GamificationBar() {
           levelTier: level.tier,
           questDone: completedCount(quest),
           questTotal: 3,
+          shieldCount: shield.shields,
         });
       } catch {
         if (!cancelled) setData(null);
@@ -77,6 +81,16 @@ export default function GamificationBar() {
         <span aria-hidden>🔥</span>
         <span>{data.streakDays} 天</span>
       </span>
+      {/* 保护券：仅在持有 >0 时展示，避免新用户看到 0 张的困惑 */}
+      {data.shieldCount > 0 && (
+        <span
+          className="flex items-center gap-1 font-medium text-cyan-600 dark:text-cyan-400"
+          title={`连胜保护券 ${data.shieldCount} 张：断签 1 天自动保住连胜`}
+        >
+          <span aria-hidden>🛡️</span>
+          <span>{data.shieldCount}</span>
+        </span>
+      )}
       <span className="flex items-center gap-1 font-medium text-amber-600 dark:text-amber-400">
         <span aria-hidden>⚡</span>
         <span>

@@ -1,11 +1,14 @@
 "use client";
 
 /**
- * 全量词库浏览页面
+ * 词典浏览页面
  *
  * - 输入前缀浏览内置词典中的单词
  * - 点击单词跳转词条页
  * - 支持按字母快速筛选
+ *
+ * 命名说明：曾叫"全量词库"，与底部 Tab 的"词库"(/books 官方词书)
+ * 概念不同。现更名为"词典浏览"，明确是浏览内置词典，非词书学习。
  */
 import Link from "next/link";
 import { useEffect, useRef } from "react";
@@ -44,8 +47,8 @@ export default function DictBrowserPage() {
       </Link>
 
       <header className="flex items-center gap-2">
-        <BookIcon title="全量词库" className="h-5 w-5 text-blue-500" />
-        <h1 className="text-xl font-bold">全量词库</h1>
+        <BookIcon title="词典浏览" className="h-5 w-5 text-blue-500" />
+        <h1 className="text-xl font-bold">词典浏览</h1>
       </header>
 
       <p className="text-xs text-neutral-500">
