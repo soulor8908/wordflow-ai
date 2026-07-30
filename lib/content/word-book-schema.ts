@@ -1,50 +1,71 @@
-import { z } from "zod";
+/**
+ * 词书类型定义（客户端安全：无 zod 运行时依赖）
+ *
+ * 运行时校验 schema 见 `lib/content/schemas.ts`（仅构建期 / 服务端使用）。
+ * 客户端只消费这里的纯类型；JSON 数据由构建脚本预先校验，运行时只需
+ * 轻量结构检查（见 `lib/content/book-index.ts` 与 `lib/review/book-queue.ts`）。
+ */
+export type SourceLevel = "T0" | "T1" | "T2" | "T3";
 
-const sourceLevelSchema = z.enum(["T0", "T1", "T2", "T3"]);
+export interface Source {
+  level: SourceLevel;
+  name: string;
+}
 
-const sourceSchema = z.object({
-  level: sourceLevelSchema,
-  name: z.string(),
-});
-
-const wordEntrySchema = z.object({
-  word: z.string(),
-  pos: z.string().optional(),
-  translation: z.string(),
-  frequency: z.number().optional(),
-  phonetic: z.string().optional(),
-});
+export interface WordEntry {
+  word: string;
+  pos?: string;
+  translation: string;
+  frequency?: number;
+  phonetic?: string;
+}
 
 /** 完整词书（内嵌 words 数组，适用于小词书/样本） */
-export const wordBookSchema = z
-  .object({
-    id: z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "id must be kebab-case"),
-    name: z.string(),
-    description: z.string(),
-    dailyNew: z.number().int().min(1).max(100),
-    sources: z.array(sourceSchema).min(2, "At least 2 sources required"),
-    words: z.array(wordEntrySchema).min(1, "At least 1 word required"),
-  })
-  .refine(
-    (book) => book.sources.some((s) => s.level === "T0" || s.level === "T1"),
-    { message: "At least 1 T0/T1 source required" }
-  );
+export interface WordBook {
+  id: string;
+  name: string;
+  description: string;
+  dailyNew: number;
+  sources: Source[];
+  words: WordEntry[];
+}
 
 /** 切片化词书索引（words 在 chunk 文件中，按需加载） */
-export const slicedBookIndexSchema = z.object({
-  id: z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "id must be kebab-case"),
-  name: z.string(),
-  description: z.string(),
-  dailyNew: z.number().int().min(1).max(100),
-  sources: z.array(sourceSchema).min(2, "At least 2 sources required"),
-  sliced: z.literal(true),
-  wordCount: z.number().int().min(1),
-  chunkSize: z.number().int().min(1),
-  chunkCount: z.number().int().min(1),
-  chunks: z.array(z.string()).min(1),
-});
+export interface SlicedBookIndex {
+  id: string;
+  name: string;
+  description: string;
+  dailyNew: number;
+  sources: Source[];
+  sliced: true;
+  wordCount: number;
+  chunkSize: number;
+  chunkCount: number;
+  chunks: string[];
+}
 
-export type WordBook = z.infer<typeof wordBookSchema>;
-export type SlicedBookIndex = z.infer<typeof slicedBookIndexSchema>;
-export type SourceLevel = z.infer<typeof sourceLevelSchema>;
-export type WordEntry = z.infer<typeof wordEntrySchema>;
+/** 词书元信息（索引文件中的一条记录） */
+export type BookColor =
+  | "blue"
+  | "purple"
+  | "green"
+  | "orange"
+  | "red"
+  | "amber"
+  | "slate";
+
+export interface BookMeta {
+  id: string;
+  name: string;
+  description: string;
+  level: string;
+  wordCount: number;
+  dailyNew: number;
+  color: BookColor;
+  sliced?: boolean;
+  chunkCount?: number;
+}
+
+export interface BookIndex {
+  books: BookMeta[];
+}

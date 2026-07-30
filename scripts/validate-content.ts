@@ -17,9 +17,11 @@ import { resolve, join } from "node:path";
 import {
   wordBookSchema,
   slicedBookIndexSchema,
-  type WordBook,
-  type SlicedBookIndex,
-  type WordEntry,
+} from "@/lib/content/schemas";
+import type {
+  WordBook,
+  SlicedBookIndex,
+  WordEntry,
 } from "@/lib/content/word-book-schema";
 // SlicedBookIndex used in validateSlicedBook signature
 import {

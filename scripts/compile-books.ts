@@ -13,7 +13,8 @@
  */
 import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { resolve, join } from "node:path";
-import { wordBookSchema, type WordBook } from "@/lib/content/word-book-schema";
+import { wordBookSchema } from "@/lib/content/schemas";
+import type { WordBook } from "@/lib/content/word-book-schema";
 
 /** 简易 YAML 解析（仅支持词书用到的扁平结构 + 数组）。生产建议用 js-yaml。 */
 function parseSimpleYaml(yaml: string): unknown {

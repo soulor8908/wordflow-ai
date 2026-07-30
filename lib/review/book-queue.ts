@@ -13,11 +13,10 @@
  * - 兼容旧的扁平 {id}.json 格式
  */
 import { getItem, setItem, listItemsByPrefix } from "@/lib/storage/db";
-import {
-  wordBookSchema,
-  slicedBookIndexSchema,
-  type WordBook,
-  type WordEntry,
+import type {
+  WordBook,
+  WordEntry,
+  SlicedBookIndex,
 } from "@/lib/content/word-book-schema";
 import type { NewWordCandidate } from "@/lib/review/today-queue";
 import type { WordCard } from "@/lib/review/fsrs-scheduler";
@@ -138,6 +137,36 @@ const bookMetaCache = new Map<string, BookMeta>();
 const chunkCache = new Map<string, WordEntry[]>();
 
 /**
+ * 轻量结构校验：尝试把 unknown 解析为 SlicedBookIndex，失败返回 null。
+ * 完整 zod schema 校验在构建期完成（scripts/validate-content.ts），
+ * 运行时只校验关键字段存在 + 类型，避免把 zod 打包到客户端。
+ */
+function tryParseSlicedBookIndex(raw: unknown): SlicedBookIndex | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  if (typeof o.id !== "string" || typeof o.name !== "string" ||
+      typeof o.description !== "string" || typeof o.dailyNew !== "number" ||
+      typeof o.wordCount !== "number" || typeof o.chunkSize !== "number" ||
+      typeof o.chunkCount !== "number" || o.sliced !== true ||
+      !Array.isArray(o.chunks) || !Array.isArray(o.sources)) {
+    return null;
+  }
+  return o as unknown as SlicedBookIndex;
+}
+
+/** 轻量结构校验：尝试把 unknown 解析为 WordBook，失败返回 null。 */
+function tryParseWordBook(raw: unknown): WordBook | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  if (typeof o.id !== "string" || typeof o.name !== "string" ||
+      typeof o.description !== "string" || typeof o.dailyNew !== "number" ||
+      !Array.isArray(o.words) || !Array.isArray(o.sources)) {
+    return null;
+  }
+  return o as unknown as WordBook;
+}
+
+/**
  * 加载词书元数据（优先切片化 index.json，回退扁平 {id}.json）。
  * 只拉取元数据，不加载词条，适用于 UI 展示词书列表。
  */
@@ -150,18 +179,18 @@ export async function loadBookMeta(bookId: string): Promise<BookMeta> {
   });
   if (slicedRes.ok) {
     const raw = await slicedRes.json();
-    const parsed = slicedBookIndexSchema.safeParse(raw);
-    if (parsed.success) {
+    const sliced = tryParseSlicedBookIndex(raw);
+    if (sliced) {
       const meta: BookMeta = {
-        id: parsed.data.id,
-        name: parsed.data.name,
-        description: parsed.data.description,
-        dailyNew: parsed.data.dailyNew,
-        wordCount: parsed.data.wordCount,
+        id: sliced.id,
+        name: sliced.name,
+        description: sliced.description,
+        dailyNew: sliced.dailyNew,
+        wordCount: sliced.wordCount,
         sliced: true,
-        chunkSize: parsed.data.chunkSize,
-        chunkCount: parsed.data.chunkCount,
-        chunks: parsed.data.chunks,
+        chunkSize: sliced.chunkSize,
+        chunkCount: sliced.chunkCount,
+        chunks: sliced.chunks,
       };
       bookMetaCache.set(bookId, meta);
       return meta;
@@ -172,19 +201,19 @@ export async function loadBookMeta(bookId: string): Promise<BookMeta> {
   const flatRes = await fetch(`/book-data/${bookId}.json`, { cache: "force-cache" });
   if (!flatRes.ok) throw new Error(`词书不存在: ${bookId}`);
   const raw = await flatRes.json();
-  const parsed = wordBookSchema.safeParse(raw);
-  if (!parsed.success) throw new Error(`词书格式无效: ${bookId}`);
+  const book = tryParseWordBook(raw);
+  if (!book) throw new Error(`词书格式无效: ${bookId}`);
   const meta: BookMeta = {
-    id: parsed.data.id,
-    name: parsed.data.name,
-    description: parsed.data.description,
-    dailyNew: parsed.data.dailyNew,
-    wordCount: parsed.data.words.length,
+    id: book.id,
+    name: book.name,
+    description: book.description,
+    dailyNew: book.dailyNew,
+    wordCount: book.words.length,
     sliced: false,
   };
   bookMetaCache.set(bookId, meta);
   // 扁平格式也缓存词条
-  chunkCache.set(`${bookId}:flat`, parsed.data.words);
+  chunkCache.set(`${bookId}:flat`, book.words);
   return meta;
 }
 
@@ -250,7 +279,10 @@ export async function loadBook(bookId: string): Promise<WordBook> {
       cache: "force-cache",
     });
     if (!flatRes.ok) throw new Error(`词书不存在: ${bookId}`);
-    return wordBookSchema.parse(await flatRes.json());
+    const raw = await flatRes.json();
+    const book = tryParseWordBook(raw);
+    if (!book) throw new Error(`词书格式无效: ${bookId}`);
+    return book;
   }
   // 切片化：聚合所有 chunk（慎用，大词书会拉全量数据）
   const allWords: WordEntry[] = [];

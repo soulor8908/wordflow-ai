@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { wordBookSchema } from "@/lib/content/word-book-schema";
+import { wordBookSchema } from "@/lib/content/schemas";
 
 describe("wordBookSchema", () => {
   test("valid word book with all required fields passes validation", () => {

@@ -3,27 +3,14 @@
  *
  * 从 /books/index.json 加载所有官方词书的元信息（不含词条数据），
  * 词库管理页用于列表展示；选定后按需 fetch /books/{id}.json 加载词条
+ *
+ * 性能：客户端不再 import zod（~280KB / gzip 64KB），改为轻量结构校验。
+ * 完整 zod schema 校验已在构建期由 scripts/validate-content.ts 完成，
+ * 运行时只需保证字段存在 + 类型正确即可。
  */
-import { z } from "zod";
+import type { BookMeta } from "@/lib/content/word-book-schema";
 
-export const bookMetaSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  description: z.string(),
-  level: z.string(),
-  wordCount: z.number().int().positive(),
-  dailyNew: z.number().int().positive(),
-  color: z.enum(["blue", "purple", "green", "orange", "red", "amber", "slate"]),
-  sliced: z.boolean().optional(),
-  chunkCount: z.number().int().optional(),
-});
-
-export const bookIndexSchema = z.object({
-  books: z.array(bookMetaSchema),
-});
-
-export type BookMeta = z.infer<typeof bookMetaSchema>;
-export type BookIndex = z.infer<typeof bookIndexSchema>;
+export type { BookMeta, BookIndex } from "@/lib/content/word-book-schema";
 
 /** 颜色 → tailwind 类名映射 */
 export const BOOK_COLOR_CLASSES: Record<
@@ -74,14 +61,44 @@ export const BOOK_COLOR_CLASSES: Record<
   },
 };
 
+const ALLOWED_COLORS = new Set<BookMeta["color"]>([
+  "blue", "purple", "green", "orange", "red", "amber", "slate",
+]);
+
+/**
+ * 轻量结构校验：仅检查字段存在 + 关键类型，不做完整 zod schema 校验。
+ * 失败时抛出 Error，与原 zod safeParse 行为一致。
+ */
+function assertBookMeta(raw: unknown): asserts raw is BookMeta {
+  if (!raw || typeof raw !== "object") {
+    throw new Error("词书索引格式错误: 期望对象");
+  }
+  const o = raw as Record<string, unknown>;
+  const required: Array<keyof BookMeta> = [
+    "id", "name", "description", "level", "wordCount", "dailyNew", "color",
+  ];
+  for (const k of required) {
+    if (!(k in o)) throw new Error(`词书索引格式错误: 缺少字段 ${String(k)}`);
+  }
+  if (typeof o.id !== "string" || typeof o.name !== "string" ||
+      typeof o.description !== "string" || typeof o.level !== "string" ||
+      typeof o.wordCount !== "number" || typeof o.dailyNew !== "number" ||
+      typeof o.color !== "string" || !ALLOWED_COLORS.has(o.color as BookMeta["color"])) {
+    throw new Error("词书索引格式错误: 字段类型不匹配");
+  }
+}
+
 /** 加载官方词书索引 */
 export async function loadBookIndex(): Promise<BookMeta[]> {
   const res = await fetch("/book-data/index.json", { cache: "force-cache" });
   if (!res.ok) throw new Error("加载词书索引失败");
   const data = await res.json();
-  const parsed = bookIndexSchema.safeParse(data);
-  if (!parsed.success) {
-    throw new Error(`词书索引格式错误: ${parsed.error.message}`);
+  if (!data || typeof data !== "object" || !Array.isArray((data as { books?: unknown }).books)) {
+    throw new Error("词书索引格式错误: 缺少 books 数组");
   }
-  return parsed.data.books;
+  const books = (data as { books: unknown[] }).books;
+  for (const b of books) {
+    assertBookMeta(b);
+  }
+  return books as BookMeta[];
 }
