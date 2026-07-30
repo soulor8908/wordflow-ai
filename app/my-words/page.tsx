@@ -28,6 +28,7 @@ import {
 export default function MyWordsPage() {
   const [words, setWords] = useState<UserWordEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingWord, setDeletingWord] = useState<string | null>(null);
 
   // 初始加载：loading 初始为 true，仅在 async 回调中 setState（避免 effect 内同步 setState）
   useEffect(() => {
@@ -48,16 +49,18 @@ export default function MyWordsPage() {
   }, []);
 
   async function handleDelete(word: string) {
-    await deleteUserWord(word);
-    // 刷新列表（事件处理器中 setState 不受 effect 规则限制）
-    setLoading(true);
+    if (deletingWord) return;
+    setDeletingWord(word);
+    // 乐观更新：先从列表移除，让用户立即看到反馈
+    setWords((prev) => prev.filter((w) => w.word !== word));
     try {
+      await deleteUserWord(word);
+    } catch {
+      // 删除失败：重新加载列表恢复数据
       const list = await listUserWords();
       setWords(list);
-    } catch {
-      setWords([]);
     } finally {
-      setLoading(false);
+      setDeletingWord(null);
     }
   }
 
@@ -125,10 +128,14 @@ export default function MyWordsPage() {
                 variant="ghost"
                 size="iconSm"
                 onClick={() => handleDelete(w.word)}
+                disabled={deletingWord === w.word}
                 aria-label={`删除 ${w.word}`}
                 className="shrink-0 !text-neutral-300 hover:!text-red-500 group-hover:!text-neutral-400"
               >
-                <TrashIcon title="删除" className="h-4 w-4" />
+                <TrashIcon
+                  title="删除"
+                  className={`h-4 w-4 ${deletingWord === w.word ? "animate-spin" : ""}`}
+                />
               </Button>
             </li>
           ))}

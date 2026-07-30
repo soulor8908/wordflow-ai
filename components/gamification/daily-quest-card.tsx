@@ -38,7 +38,21 @@ export default function DailyQuestCard() {
     };
   }, []);
 
-  if (!quest) return null;
+  if (!quest) {
+    return (
+      <section className="animate-pulse rounded-lg border border-neutral-200 px-4 py-4 dark:border-neutral-800">
+        <div className="mb-3 h-4 w-20 rounded bg-neutral-200 dark:bg-neutral-800" />
+        <div className="flex flex-col gap-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="flex items-center gap-2">
+              <div className="h-4 w-4 rounded bg-neutral-200 dark:bg-neutral-800" />
+              <div className="h-3 flex-1 rounded bg-neutral-100 dark:bg-neutral-900" />
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
 
   const reviewDone = isReviewDone(quest);
   const correctDone = isCorrectDone(quest);

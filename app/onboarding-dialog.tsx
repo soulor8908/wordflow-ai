@@ -90,6 +90,24 @@ export default function OnboardingDialog({
           {error && (
             <p className="px-2 py-2 text-xs text-red-500">{error}</p>
           )}
+          {!books && !error && (
+            <div className="flex flex-col gap-2">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="animate-pulse rounded-lg border-2 border-neutral-200 px-3 py-3 dark:border-neutral-800"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 h-5 w-10 rounded-full bg-neutral-200 dark:bg-neutral-800" />
+                    <div className="flex flex-1 flex-col gap-1">
+                      <div className="h-4 w-32 rounded bg-neutral-200 dark:bg-neutral-800" />
+                      <div className="h-3 w-24 rounded bg-neutral-100 dark:bg-neutral-900" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
           {books && (
             <ul className="flex flex-col gap-2">
               {books.map((b) => {

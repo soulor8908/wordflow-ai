@@ -80,6 +80,7 @@ export default function HomePage() {
 
   // AI 搜索状态：内置词典无结果时自动调用 AI
   const [aiSearching, setAiSearching] = useState(false);
+  const [aiPending, setAiPending] = useState(false);
   const [aiEntry, setAiEntry] = useState<DictEntry | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const aiQueryRef = useRef<string>("");
@@ -151,17 +152,21 @@ export default function HomePage() {
         setAiEntry(null);
         setAiError(null);
         setAiSearching(false);
+        setAiPending(false);
       });
       aiQueryRef.current = "";
       return;
     }
 
-    // 内置词典无结果 + 搜索完成 → 触发 AI 搜索
+    // 内置词典无结果 + 搜索完成 → 标记 AI 搜索待触发（防抖窗口）
+    queueMicrotask(() => setAiPending(true));
+
     // 防抖：等 500ms 确认用户停止输入
     const timer = setTimeout(() => {
       // 避免重复查询同一词
       if (aiQueryRef.current === trimmed) return;
       aiQueryRef.current = trimmed;
+      setAiPending(false);
       setAiSearching(true);
       setAiEntry(null);
       setAiError(null);
@@ -181,7 +186,10 @@ export default function HomePage() {
         });
     }, 500);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      setAiPending(false);
+    };
   }, [query, results.length, loading, indexReady]);
 
   const hasQuery = query.trim().length > 0;
@@ -324,12 +332,12 @@ export default function HomePage() {
           {loading && (
             <li className="px-4 py-3 text-sm text-neutral-400">搜索中…</li>
           )}
-          {!loading && results.length === 0 && !aiSearching && !aiEntry && !aiError && (
+          {!loading && results.length === 0 && !aiSearching && !aiPending && !aiEntry && !aiError && (
             <li className="px-4 py-3 text-sm text-neutral-400">
               无匹配，试试检查拼写
             </li>
           )}
-          {!loading && results.length === 0 && aiSearching && (
+          {!loading && results.length === 0 && (aiSearching || aiPending) && (
             <li className="px-4 py-3 text-sm text-neutral-400">
               <span className="inline-flex items-center gap-2">
                 <span className="animate-pulse">●</span>
