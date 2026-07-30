@@ -31,6 +31,8 @@ export interface DrillCache {
 }
 
 export interface FsrsCache {
+  /** 生成此队列时的当前词书 ID，用于切换词书后检测快照过期 */
+  activeBookId: string | null;
   queue: TodayQueueItem[];
   index: number;
   flipped: boolean;

@@ -88,9 +88,16 @@ function assertBookMeta(raw: unknown): asserts raw is BookMeta {
   }
 }
 
-/** 加载官方词书索引 */
+/**
+ * 加载官方词书索引。
+ *
+ * 使用 `no-cache` 而非 `force-cache`：每次发起请求时与服务器 revalidate
+ * （静态 JSON 在 Cloudflare 上有 ETag/Last-Modified，304 响应极轻），
+ * 确保新增词书后刷新页面能立即看到，而非等 HTTP 缓存过期。
+ * 数据仍会被浏览器 HTTP 缓存与 Service Worker 缓存，离线可用。
+ */
 export async function loadBookIndex(): Promise<BookMeta[]> {
-  const res = await fetch("/book-data/index.json", { cache: "force-cache" });
+  const res = await fetch("/book-data/index.json", { cache: "no-cache" });
   if (!res.ok) throw new Error("加载词书索引失败");
   const data = await res.json();
   if (!data || typeof data !== "object" || !Array.isArray((data as { books?: unknown }).books)) {

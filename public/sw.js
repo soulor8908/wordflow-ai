@@ -5,7 +5,7 @@
  * SW 环境限制：无法 import 项目 TS 模块，doBackgroundCheck 内联原生 IndexedDB API
  * + 通知文案逻辑（与 lib/pwa/notification-message.ts 对齐，单一真相源在纯函数守护测试）。
  */
-const CACHE_NAME = "wordflow-v2";
+const CACHE_NAME = "wordflow-v3";
 const PRECACHE_URLS = ["/", "/review", "/stats", "/manifest.json"];
 const BACKGROUND_TAG = "wordflow-background-check";
 const DB_NAME = "wordflow-db";
@@ -35,7 +35,7 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// ===== fetch：stale-while-revalidate =====
+// ===== fetch：分级缓存策略 =====
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
@@ -43,6 +43,24 @@ self.addEventListener("fetch", (event) => {
   // /api/ 不缓存（离线时 AI 不可用但本地数据可读写）
   if (url.pathname.startsWith("/api/")) return;
 
+  // 词书索引 /book-data/index.json：network-first
+  // 新增词书后刷新页面必须立即看到，不能等 SW 后台 revalidate
+  if (url.pathname === "/book-data/index.json") {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res.ok && url.origin === self.location.origin) {
+            const clone = res.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
+          }
+          return res;
+        })
+        .catch(() => caches.match(req).then((c) => c || new Response("离线", { status: 503 })))
+    );
+    return;
+  }
+
+  // 其他静态资源：stale-while-revalidate（缓存命中即时返回 + 后台更新）
   event.respondWith(
     caches.match(req).then((cached) => {
       const fetchPromise = fetch(req)

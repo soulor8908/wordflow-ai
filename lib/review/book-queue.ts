@@ -137,6 +137,18 @@ const bookMetaCache = new Map<string, BookMeta>();
 const chunkCache = new Map<string, WordEntry[]>();
 
 /**
+ * 清空模块级内存缓存（词书元数据 + 切片词条）。
+ *
+ * 切换词书时调用，防御性清理：虽然缓存按 bookId 分键，切换后不会读到旧词书数据，
+ * 但清空可避免旧词书 meta/chunk 常驻内存，并在极端时序下杜绝脏读。
+ * 不影响 HTTP/SW 缓存（离线仍可用）。
+ */
+export function clearBookMemoryCache(): void {
+  bookMetaCache.clear();
+  chunkCache.clear();
+}
+
+/**
  * 轻量结构校验：尝试把 unknown 解析为 SlicedBookIndex，失败返回 null。
  * 完整 zod schema 校验在构建期完成（scripts/validate-content.ts），
  * 运行时只校验关键字段存在 + 类型，避免把 zod 打包到客户端。

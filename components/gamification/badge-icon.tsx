@@ -6,15 +6,16 @@
  * 设计语言：「切面宝石勋章 Faceted Gemstone Medals」
  *
  * 取舍（乔布斯式 + 卡帕西式）：
- * - 每枚徽章是一枚切面六边形宝石 + 中心类别线形 glyph，整体一致、克制、有工艺感
- * - 稀有度通过金属/宝石质感渐变编码（铜=暖铜 / 银=冷银 / 金=抛光金 / 钻=冰蓝晶）
- *   —— 不靠 emoji，不靠花哨贴纸，靠材质本身说话
- * - 类别通过中心 glyph 编码（火焰/书堆/靶心/指南针/闪电/日出/月牙/翻开的书/奖杯/钻石/钥匙孔）
+ * - 每枚徽章是一枚切面宝石 + 中心类别线形 glyph，整体一致、克制、有工艺感
+ * - 稀有度通过形状、切面数、装饰元素、材质渐变四维编码，而非仅靠颜色：
+ *   · 铜级：六边形 + 6 切面 + 哑光暖铜 → 朴素基石
+ *   · 银级：六边形 + 12 切面（内环） + 抛光高光 → 精炼进阶
+ *   · 金级：六边形 + 12 切面 + 放射星芒 + 光晕 → 辉煌成就
+ *   · 钻级：八边形 + 16 切面 + 皇冠 + 棱镜折射 → 至尊收藏
+ * - 类别通过中心 glyph 编码
  * - 未解锁：去色灰阶 + 降透明度，保留剪影让用户识别"那里有一枚徽章"
  * - 隐藏徽章解锁前：钥匙孔 glyph + ???，不解密内容只给神秘感
  * - 全 SVG，stroke=currentColor，继承父级颜色；尺寸由 className 控制（默认 h-12 w-12）
- *
- * 这是产品特色：所有徽章共用一套勋章语言，而非各画各的 emoji。
  */
 import { useId } from "react";
 import type { BadgeRarity } from "@/lib/gamification/badges";
@@ -33,16 +34,92 @@ export type BadgeIconKey =
   | "trophy"
   | "keyhole";
 
-/** 稀有度 → 渐变配色（亮色端 / 暗色端 / 描边） */
-const RARITY_PALETTE: Record<
-  BadgeRarity,
-  { light: string; dark: string; ring: string }
-> = {
-  bronze: { light: "#e0b27a", dark: "#8a5a2b", ring: "#5e3d1c" },
-  silver: { light: "#e8edf2", dark: "#9aa3ad", ring: "#6b7280" },
-  gold: { light: "#ffe79a", dark: "#c9941f", ring: "#8a6212" },
-  diamond: { light: "#a9ecff", dark: "#4aa3c7", ring: "#2a7a9a" },
+/** 稀有度 → 完整视觉规格（配色 + 切面 + 装饰） */
+interface RaritySpec {
+  /** 主体渐变亮色端 */
+  light: string;
+  /** 主体渐变暗色端 */
+  dark: string;
+  /** 描边色 */
+  ring: string;
+  /** 高光色（抛光/折射用） */
+  highlight: string;
+  /** 内部切面线色 */
+  facet: string;
+  /** 顶点坐标（形状轮廓） */
+  shape: "hexagon" | "octagon";
+  /** 是否绘制内环（银级+） */
+  innerRing: boolean;
+  /** 是否绘制放射星芒（金级+） */
+  starRays: boolean;
+  /** 是否绘制光晕（金级+） */
+  glow: boolean;
+  /** 是否绘制皇冠（钻级） */
+  crown: boolean;
+  /** 是否绘制棱镜闪光点（钻级） */
+  sparkles: boolean;
+}
+
+const RARITY_SPECS: Record<BadgeRarity, RaritySpec> = {
+  bronze: {
+    light: "#e0b27a",
+    dark: "#8a5a2b",
+    ring: "#5e3d1c",
+    highlight: "#f0d4a0",
+    facet: "#c8965a",
+    shape: "hexagon",
+    innerRing: false,
+    starRays: false,
+    glow: false,
+    crown: false,
+    sparkles: false,
+  },
+  silver: {
+    light: "#e8edf2",
+    dark: "#9aa3ad",
+    ring: "#6b7280",
+    highlight: "#ffffff",
+    facet: "#c0c8d0",
+    shape: "hexagon",
+    innerRing: true,
+    starRays: false,
+    glow: false,
+    crown: false,
+    sparkles: false,
+  },
+  gold: {
+    light: "#ffe79a",
+    dark: "#c9941f",
+    ring: "#8a6212",
+    highlight: "#fff8d6",
+    facet: "#e8b840",
+    shape: "hexagon",
+    innerRing: true,
+    starRays: true,
+    glow: true,
+    crown: false,
+    sparkles: false,
+  },
+  diamond: {
+    light: "#a9ecff",
+    dark: "#4aa3c7",
+    ring: "#2a7a9a",
+    highlight: "#e0f7ff",
+    facet: "#7ac8e0",
+    shape: "octagon",
+    innerRing: true,
+    starRays: true,
+    glow: true,
+    crown: true,
+    sparkles: true,
+  },
 };
+
+/** 六边形顶点（尖顶，48×48 viewBox） */
+const HEXAGON_POINTS = "24,2 43,13 43,35 24,46 5,35 5,13";
+
+/** 八边形顶点（48×48 viewBox，更接近圆形 = 更多折射面） */
+const OCTAGON_POINTS = "24,2 38,7 43,16 43,32 38,41 24,46 10,41 5,32 5,16 10,7";
 
 /** 类别 glyph（24×24 坐标，stroke=currentColor） */
 function Glyph({ iconKey }: { iconKey: BadgeIconKey }) {
@@ -127,10 +204,43 @@ function Glyph({ iconKey }: { iconKey: BadgeIconKey }) {
 }
 
 /**
+ * 绘制切面线：从中心到各顶点。
+ * 六边形 = 6 条线；八边形 = 8 条线 + 对角线 = 更多折射面。
+ */
+function FacetLines({ spec }: { spec: RaritySpec }) {
+  const isOct = spec.shape === "octagon";
+  const vertices = isOct
+    ? [[24,2],[38,7],[43,16],[43,32],[38,41],[24,46],[10,41],[5,32],[5,16],[10,7]]
+    : [[24,2],[43,13],[43,35],[24,46],[5,35],[5,13]];
+
+  return (
+    <g
+      stroke={spec.facet}
+      strokeWidth={0.7}
+      strokeLinejoin="round"
+      opacity={0.55}
+    >
+      {vertices.map(([x, y], i) => (
+        <line key={i} x1="24" y1="24" x2={x} y2={y} />
+      ))}
+      {/* 八边形额外对角线切面，增强钻石折射感 */}
+      {isOct && (
+        <>
+          <line x1="10" y1="7" x2="38" y2="41" />
+          <line x1="38" y1="7" x2="10" y2="41" />
+          <line x1="5" y1="16" x2="43" y2="32" />
+          <line x1="43" y1="16" x2="5" y2="32" />
+        </>
+      )}
+    </g>
+  );
+}
+
+/**
  * 渲染一枚切面宝石勋章。
  *
  * @param iconKey  类别 glyph（由 rule.icon 提供）
- * @param rarity   稀有度，决定宝石材质配色
+ * @param rarity   稀有度，决定宝石形状、切面、装饰、配色
  * @param unlocked 是否已解锁（未解锁 → 灰阶剪影）
  * @param masked   隐藏徽章解锁前（→ 钥匙孔 glyph）
  * @param className 尺寸/布局（默认 h-12 w-12）
@@ -151,12 +261,14 @@ export function BadgeIcon({
   const uid = useId().replace(/:/g, "");
   const fillId = `bf-${uid}`;
   const rimId = `br-${uid}`;
-  const palette = RARITY_PALETTE[rarity];
+  const glowId = `bg-${uid}`;
+  const spec = RARITY_SPECS[rarity];
   const shownKey: BadgeIconKey = masked ? "keyhole" : (iconKey as BadgeIconKey);
+  const points = spec.shape === "octagon" ? OCTAGON_POINTS : HEXAGON_POINTS;
 
   // 未解锁：去色（统一中性灰，保留剪影）
   const fillRef = unlocked ? `url(#${fillId})` : "#3f3f46";
-  const rimColor = unlocked ? palette.ring : "#27272a";
+  const rimColor = unlocked ? `url(#${rimId})` : "#27272a";
 
   return (
     <svg
@@ -167,39 +279,110 @@ export function BadgeIcon({
     >
       <defs>
         <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={palette.light} />
-          <stop offset="100%" stopColor={palette.dark} />
+          <stop offset="0%" stopColor={unlocked ? spec.light : "#52525b"} />
+          <stop offset="100%" stopColor={unlocked ? spec.dark : "#3f3f46"} />
         </linearGradient>
         <linearGradient id={rimId} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor={palette.light} />
-          <stop offset="55%" stopColor={palette.dark} />
-          <stop offset="100%" stopColor={palette.light} />
+          <stop offset="0%" stopColor={unlocked ? spec.light : "#52525b"} />
+          <stop offset="55%" stopColor={unlocked ? spec.dark : "#3f3f46"} />
+          <stop offset="100%" stopColor={unlocked ? spec.light : "#52525b"} />
         </linearGradient>
+        {/* 金/钻级光晕径向渐变 */}
+        {unlocked && spec.glow && (
+          <radialGradient id={glowId} cx="50%" cy="50%" r="55%">
+            <stop offset="0%" stopColor={spec.highlight} stopOpacity="0.45" />
+            <stop offset="60%" stopColor={spec.light} stopOpacity="0.15" />
+            <stop offset="100%" stopColor={spec.light} stopOpacity="0" />
+          </radialGradient>
+        )}
       </defs>
 
-      {/* 切面六边形宝石外框（尖顶） */}
+      {/* 光晕（金级+）：宝石背后的柔和辉光 */}
+      {unlocked && spec.glow && (
+        <circle cx="24" cy="24" r="26" fill={`url(#${glowId})`} />
+      )}
+
+      {/* 放射星芒（金级+）：从宝石向外辐射的光线 */}
+      {unlocked && spec.starRays && (
+        <g
+          stroke={spec.highlight}
+          strokeWidth="1.2"
+          strokeLinecap="round"
+          opacity="0.5"
+        >
+          <line x1="24" y1="0" x2="24" y2="-2" />
+          <line x1="24" y1="48" x2="24" y2="50" />
+          <line x1="0" y1="24" x2="-2" y2="24" />
+          <line x1="48" y1="24" x2="50" y2="24" />
+          <line x1="7" y1="7" x2="5" y2="5" />
+          <line x1="41" y1="7" x2="43" y2="5" />
+          <line x1="7" y1="41" x2="5" y2="43" />
+          <line x1="41" y1="41" x2="43" y2="43" />
+        </g>
+      )}
+
+      {/* 宝石主体 */}
       <polygon
-        points="24,2 43,13 43,35 24,46 5,35 5,13"
+        points={points}
         fill={fillRef}
-        stroke={unlocked ? `url(#${rimId})` : rimColor}
+        stroke={rimColor}
         strokeWidth={unlocked ? 2.4 : 2}
         strokeLinejoin="round"
       />
 
-      {/* 内部切面线：从中心到各顶点，营造宝石折射感 */}
-      <g
-        stroke={unlocked ? palette.light : "#52525b"}
-        strokeWidth={0.7}
-        strokeLinejoin="round"
-        opacity={unlocked ? 0.55 : 0.35}
-      >
-        <line x1="24" y1="24" x2="24" y2="2" />
-        <line x1="24" y1="24" x2="43" y2="13" />
-        <line x1="24" y1="24" x2="43" y2="35" />
-        <line x1="24" y1="24" x2="24" y2="46" />
-        <line x1="24" y1="24" x2="5" y2="35" />
-        <line x1="24" y1="24" x2="5" y2="13" />
-      </g>
+      {/* 内部切面线 */}
+      {unlocked && <FacetLines spec={spec} />}
+
+      {/* 内环（银级+）：双重边界，增强精致感 */}
+      {unlocked && spec.innerRing && (
+        <polygon
+          points={spec.shape === "octagon"
+            ? "24,6 35,10 39,17 39,31 35,38 24,42 13,38 9,31 9,17 13,10"
+            : "24,6 39,14 39,34 24,42 9,34 9,14"
+          }
+          fill="none"
+          stroke={spec.highlight}
+          strokeWidth="0.8"
+          opacity="0.5"
+        />
+      )}
+
+      {/* 棱镜闪光点（钻级）：宝石表面的十字星折射 */}
+      {unlocked && spec.sparkles && (
+        <g fill={spec.highlight} opacity="0.8">
+          {/* 左上折射 */}
+          <path d="M14 14 L15 12 L16 14 L15 16 Z" />
+          {/* 右下折射 */}
+          <path d="M33 33 L34 31 L35 33 L34 35 Z" />
+          {/* 中心微闪 */}
+          <circle cx="20" cy="28" r="0.8" />
+          <circle cx="30" cy="20" r="0.6" />
+        </g>
+      )}
+
+      {/* 皇冠（钻级）：宝石顶部的小皇冠装饰 */}
+      {unlocked && spec.crown && (
+        <g
+          fill={spec.highlight}
+          stroke={spec.ring}
+          strokeWidth="0.5"
+          strokeLinejoin="round"
+        >
+          <path d="M20 3 L22 1 L24 3 L26 1 L28 3 L28 5 L20 5 Z" opacity="0.9" />
+        </g>
+      )}
+
+      {/* 抛光高光（银级+）：左上角的弧形反光 */}
+      {unlocked && spec.innerRing && (
+        <path
+          d="M 12 12 Q 18 8 24 8"
+          fill="none"
+          stroke={spec.highlight}
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          opacity="0.6"
+        />
+      )}
 
       {/* 中心类别 glyph（16×16，居中） */}
       <g

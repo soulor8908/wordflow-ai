@@ -143,6 +143,8 @@ function FsrsReview() {
   const [submitting, setSubmitting] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  // 当前队列所属词书 ID（用于快照保存时写入 activeBookId）
+  const [queueBookId, setQueueBookId] = useState<string | null>(null);
   // 会话内累计：用于完成页正反馈爆发（XP / 徽章）
   const [sessionXp, setSessionXp] = useState(0);
   const [sessionBadges, setSessionBadges] = useState<BadgeRule[]>([]);
@@ -155,11 +157,21 @@ function FsrsReview() {
       setPhase("loading");
       setLoadError(null);
 
+      // 先读取当前词书 ID：用于校验缓存快照是否属于当前词书
+      const active = await getActiveBook();
+      if (cancelled) return;
+      if (!active) {
+        setPhase("no-book");
+        return;
+      }
+
       // 尝试恢复上次 FSRS 会话快照（同一天内有效）
       const cached = loadReviewSession();
       const fsrsSnap = cached?.fsrs;
       if (
         fsrsSnap &&
+        // 词书一致性校验：快照必须属于当前词书，否则丢弃（防止切换词书后恢复旧队列）
+        fsrsSnap.activeBookId === active.bookId &&
         Array.isArray(fsrsSnap.queue) &&
         fsrsSnap.queue.length > 0 &&
         fsrsSnap.index >= 0 &&
@@ -183,18 +195,13 @@ function FsrsReview() {
           setIndex(filtered.index);
           setFlipped(filtered.flipped);
           setOutcomes(Array.isArray(filtered.outcomes) ? filtered.outcomes : []);
+          setQueueBookId(active.bookId);
           setPhase("reviewing");
           return;
         }
       }
 
       try {
-        const active = await getActiveBook();
-        if (cancelled) return;
-        if (!active) {
-          setPhase("no-book");
-          return;
-        }
         const now = new Date();
         const [dueCards, newWords] = await Promise.all([
           listDueCards(now),
@@ -207,6 +214,7 @@ function FsrsReview() {
           dailyNewLimit: newWords.length,
         });
         setQueue(items);
+        setQueueBookId(active.bookId);
         if (items.length === 0) {
           setPhase("done");
         } else {
@@ -231,7 +239,7 @@ function FsrsReview() {
         version: 1,
         mode: "fsrs",
         savedAt: new Date().toISOString(),
-        fsrs: { queue, index, flipped, outcomes },
+        fsrs: { activeBookId: queueBookId, queue, index, flipped, outcomes },
       };
       saveReviewSession(snap);
     } else if (phase === "done") {
@@ -240,7 +248,7 @@ function FsrsReview() {
         saveReviewSession({ ...cached, fsrs: undefined, savedAt: new Date().toISOString() });
       }
     }
-  }, [phase, queue, index, flipped, outcomes]);
+  }, [phase, queue, index, flipped, outcomes, queueBookId]);
 
   const currentItem = queue[index];
   const currentWord = currentItem
@@ -1157,7 +1165,23 @@ function CardBack({
   if (entry === null) {
     return (
       <div className="flex flex-col gap-2">
-        <p className="text-2xl font-bold">{word}</p>
+        <div className="flex items-center gap-3">
+          <p className="text-2xl font-bold">{word}</p>
+          {speechSupported && (
+            <Button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                speak(word);
+              }}
+              variant={speaking ? "primary" : "secondary"}
+              size="sm"
+              aria-label={`发音 ${word}`}
+            >
+              <VolumeIcon title="发音" className={`h-4 w-4 ${speaking ? "animate-pulse text-blue-500" : ""}`} />
+            </Button>
+          )}
+        </div>
         <p className="text-sm text-neutral-400">（本地词库无此词条释义）</p>
       </div>
     );
@@ -1166,6 +1190,11 @@ function CardBack({
     <div className="flex w-full flex-col gap-3 text-left">
       <div className="flex items-center gap-3">
         <span className="text-2xl font-bold">{entry.word}</span>
+        {entry.phonetic && (
+          <span className="font-mono text-sm text-neutral-500">
+            {entry.phonetic}
+          </span>
+        )}
         {entry.pos && (
           <span className="text-sm italic text-neutral-400">{entry.pos}</span>
         )}
