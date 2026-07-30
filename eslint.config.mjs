@@ -18,6 +18,8 @@ const eslintConfig = defineConfig([
     "cloudflare-env.d.ts",
     // CommonJS 构建脚本（非 TypeScript 模块）
     "scripts/build-official-books.cjs",
+    ".pages-deploy.cjs",
+    ".pages-upload.cjs",
   ]),
 ]);
 
