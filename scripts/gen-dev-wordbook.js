@@ -7,7 +7,7 @@
  * 产出：
  *   public/books/dev-core/index.json
  *   public/books/dev-core/chunk-000.json ... chunk-00X.json
- * 并把词条合并写入 public/dict/{letter}/{prefix}.json（DictEntry 格式）。
+ * 并把词条合并写入 public/dict-data/{letter}/{prefix}.json（DictEntry 格式）。
  */
 const fs = require("fs");
 const path = require("path");

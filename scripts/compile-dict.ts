@@ -3,7 +3,7 @@
  * 词典数据管线脚本（设计文档 §4.2：compile-dict.ts）
  *
  * 输入：ECDICT CSV（77 万词条 MIT 协议）
- * 输出：public/dict/{a-z}/{prefix}.json 切片
+ * 输出：public/dict-data/{a-z}/{prefix}.json 切片
  *
  * 用法：
  *   tsx scripts/compile-dict.ts <ecdict.csv> [output-dir]
@@ -66,7 +66,7 @@ async function main(): Promise<void> {
   }
 
   console.log(`[compile-dict] 读取 CSV: ${csvPath}`);
-  console.log(`[compile-dict] 输出目录: ${outDir}/dict/`);
+  console.log(`[compile-dict] 输出目录: ${outDir}/dict-data/`);
 
   const entries: DictEntry[] = [];
   let header: string[] | null = null;
@@ -121,7 +121,7 @@ async function main(): Promise<void> {
     mkdirSync(dirname(absPath), { recursive: true });
     writeFileSync(absPath, file.content, "utf8");
   }
-  console.log(`[compile-dict] 写入 ${files.length} 个切片文件到 ${outDir}/dict/`);
+  console.log(`[compile-dict] 写入 ${files.length} 个切片文件到 ${outDir}/dict-data/`);
 }
 
 main().catch((err) => {

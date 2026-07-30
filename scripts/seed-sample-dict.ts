@@ -2,7 +2,7 @@
 /**
  * 小样本词典 seed 脚本（无 ECDICT.csv 时的本地开发兜底）
  *
- * 产出 public/dict/{a-z}/{prefix}.json 小样本切片，覆盖查词 UI 开发所需的高频词。
+ * 产出 public/dict-data/{a-z}/{prefix}.json 小样本切片，覆盖查词 UI 开发所需的高频词。
  * 真实数据由 scripts/compile-dict.ts 从 ECDICT 编译产出，会覆盖这些样本。
  */
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -146,7 +146,7 @@ const searchIndex = SAMPLE_ENTRIES.map((e) => ({
 }));
 writeFileSync(join(outDir, "search-index.json"), JSON.stringify(searchIndex), "utf8");
 
-console.log(`[seed-sample-dict] 写入 ${files.length} 个样本切片到 ${outDir}/dict/`);
+console.log(`[seed-sample-dict] 写入 ${files.length} 个样本切片到 ${outDir}/dict-data/`);
 console.log(`[seed-sample-dict] 写入 search-index.json（${searchIndex.length} 词）`);
 console.log(
   `[seed-sample-dict] 词条：${SAMPLE_ENTRIES.map((e) => e.word).join(", ")}`

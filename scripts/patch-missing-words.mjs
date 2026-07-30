@@ -4,7 +4,7 @@
  *
  * Reads /workspace/tmp-missing-words.txt, looks up a hardcoded translation map
  * for each word, then appends new entries to the appropriate slice file
- * (public/dict/{first_letter}/{first_2_chars}.json) and to search-index.json.
+ * (public/dict-data/{first_letter}/{first_2_chars}.json) and to search-index.json.
  *
  * Usage: node scripts/patch-missing-words.mjs
  */

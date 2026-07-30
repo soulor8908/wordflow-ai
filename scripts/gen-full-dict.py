@@ -9,7 +9,7 @@
 - 有 COCA 词频 (frq > 0) —— 黄金集合 ~42000 词
 
 产出：
-- public/dict/{letter}/{prefix}.json  —— 按 前2字符切片，每片 <50KB（超出则细分到3字符）
+- public/dict-data/{letter}/{prefix}.json  —— 按 前2字符切片，每片 <50KB（超出则细分到3字符）
 - public/search-index.json           —— 扁平 [{word, frequency}]，按词频降序
 
 字段映射 (ECDICT -> DictEntry)：

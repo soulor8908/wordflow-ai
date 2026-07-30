@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 /**
- * 从 public/dict 各字母子目录下的切片 JSON 重建扁平 search-index.json。
+ * 从 public/dict-data 各字母子目录下的切片 JSON 重建扁平 search-index.json。
  *
  * 背景：seed-sample-dict.ts 只写入 10 个样本词条到 search-index.json，
  * 而 seed-real-dict.ts / compile-dict.ts 增强了 dict 切片却不会刷新索引，

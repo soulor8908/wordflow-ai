@@ -13,7 +13,7 @@
  *   - 同近义词：WordNet 公开数据
  *   - 词根：Wiktionary 公开词源
  *
- * 与现有 public/dict/{a-z}/{prefix}.json 切片合并（按 word 去重，新数据覆盖旧数据）。
+ * 与现有 public/dict-data/{a-z}/{prefix}.json 切片合并（按 word 去重，新数据覆盖旧数据）。
  *
  * 用法：tsx scripts/seed-real-dict.ts
  */

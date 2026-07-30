@@ -119,7 +119,7 @@ WordFlow 支持两级 AI 通道，按优先级自动降级：
 
 WordFlow 采用**两层词库架构**，避免数据冗余并支持复用：
 
-1. **基础词库（Base Dict）** —— `public/dict/{首字母}/{前缀}.json`
+1. **基础词库（Base Dict）** —— `public/dict-data/{首字母}/{前缀}.json`
    - 全量词条的**单一数据源**（Single Source of Truth），存储富数据 `DictEntry`
      （音标 / 释义 / 词根 / 同反义词 / 搭配 / 词族 / 例句 等）
    - 用户**不需要选择**基础词库，它是底层公共数据
