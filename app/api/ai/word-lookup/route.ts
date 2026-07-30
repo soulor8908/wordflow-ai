@@ -7,6 +7,11 @@ import {
   type AiSessionConfig,
 } from "@/lib/ai/provider";
 import { peekQuota, consumeQuota, type QuotaSnapshot } from "@/lib/ai/free-quota";
+import {
+  getFreeSession,
+  isUsingEnvKey,
+  getDefaultKeySession,
+} from "@/lib/ai/free-session";
 
 /**
  * AI 单词查询：当内置词典找不到时，调用 AI 生成词条。
@@ -47,18 +52,6 @@ function fetchWithTimeout(input: string, init: RequestInit): Promise<Response> {
       ? AbortSignal.timeout(LOOKUP_TIMEOUT_MS)
       : undefined;
   return fetch(input, { ...init, signal });
-}
-
-function getFreeSession(): AiSessionConfig | null {
-  const apiKey = process.env.FREE_AI_API_KEY;
-  if (!apiKey) return null;
-  const provider = (process.env.FREE_AI_PROVIDER as AiSessionConfig["provider"]) ?? "agnes";
-  return {
-    provider,
-    apiKey,
-    baseURL: process.env.FREE_AI_BASE_URL || undefined,
-    model: process.env.FREE_AI_MODEL || undefined,
-  };
 }
 
 const LOOKUP_SYSTEM_PROMPT = `你是专业的英语词典编纂助手。给定一个英语单词，生成完整的词典条目。
@@ -235,39 +228,56 @@ export async function POST(request: NextRequest) {
   }
 
   const freeSession = getFreeSession();
-  if (!freeSession) {
-    return NextResponse.json<WordLookupResponse>({
-      ok: false,
-      error: "AI 通道未配置，请在「我的」页添加 API Key",
-      fallback: true,
-    });
-  }
 
+  // 尝试调用上游：env 密钥鉴权失败时自动回退到内置默认密钥重试
+  let entry: WordLookupResponse["entry"] | null = null;
   try {
-    const entry = await callAiForWord(freeSession, word);
-    if (!entry) {
-      // AI 判断不是有效单词 → 不消耗额度
-      return NextResponse.json<WordLookupResponse>({
-        ok: false,
-        error: "AI 未找到该单词的有效释义",
-        quota: before,
-      });
-    }
-    // 成功才消耗额度
-    const quota = await consumeQuota(clientId);
-    return NextResponse.json<WordLookupResponse>({ ok: true, entry, quota });
+    entry = await callAiForWord(freeSession, word);
   } catch (err) {
-    // 失败不消耗额度
     const errorClass = classifyAiError(err);
     const rawError = err instanceof Error ? err.message : String(err);
-    console.warn("[ai/word-lookup] 免费通道失败:", rawError.slice(0, 200));
+
+    if (errorClass === "upstream-auth" && isUsingEnvKey(freeSession)) {
+      // env 密钥鉴权失败 → 回退到内置默认密钥重试
+      console.warn("[ai/word-lookup] env 密钥鉴权失败，回退到默认密钥重试:", rawError.slice(0, 120));
+      try {
+        entry = await callAiForWord(getDefaultKeySession(freeSession), word);
+      } catch (err2) {
+        const ec2 = classifyAiError(err2);
+        const re2 = err2 instanceof Error ? err2.message : String(err2);
+        console.warn("[ai/word-lookup] 默认密钥也失败:", re2.slice(0, 200));
+        return NextResponse.json<WordLookupResponse>({
+          ok: false,
+          error: ec2 === "upstream-auth"
+            ? "免费通道密钥失效，请配置自己的 API Key"
+            : `AI 暂时不可用：${re2.slice(0, 80)}`,
+          quota: before,
+          fallback: true,
+        });
+      }
+    } else {
+      // 非 auth 错误或默认密钥也失败 → 不消耗额度
+      console.warn("[ai/word-lookup] 免费通道失败:", rawError.slice(0, 200));
+      return NextResponse.json<WordLookupResponse>({
+        ok: false,
+        error: errorClass === "upstream-auth"
+          ? "免费通道密钥失效，请配置自己的 API Key"
+          : `AI 暂时不可用：${rawError.slice(0, 80)}`,
+        quota: before,
+        fallback: true,
+      });
+    }
+  }
+
+  if (!entry) {
+    // AI 判断不是有效单词 → 不消耗额度
     return NextResponse.json<WordLookupResponse>({
       ok: false,
-      error: errorClass === "upstream-auth"
-        ? "免费通道密钥失效，请配置自己的 API Key"
-        : `AI 暂时不可用：${rawError.slice(0, 80)}`,
+      error: "AI 未找到该单词的有效释义",
       quota: before,
-      fallback: true,
     });
   }
+  // 成功才消耗额度
+  const quota = await consumeQuota(clientId);
+  return NextResponse.json<WordLookupResponse>({ ok: true, entry, quota });
 }

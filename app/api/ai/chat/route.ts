@@ -13,6 +13,11 @@ import {
   type QuotaSnapshot,
 } from "@/lib/ai/free-quota";
 import { buildFallbackReply } from "@/lib/ai/fallback-reply";
+import {
+  getFreeSession,
+  isUsingEnvKey,
+  getDefaultKeySession,
+} from "@/lib/ai/free-session";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -38,35 +43,9 @@ function fetchWithTimeout(input: string, init: RequestInit): Promise<Response> {
   return fetch(input, { ...init, signal });
 }
 
-/**
- * 从环境变量构造免费通道的 session。
- *
- * 默认走 DeepSeek（deepseek-v4-flash），开箱即用。
- * 可通过环境变量覆盖：
- *   FREE_AI_API_KEY / FREE_AI_PROVIDER / FREE_AI_BASE_URL / FREE_AI_MODEL
- *
- * 部署到 Cloudflare Pages 时，在 Dashboard → Settings → Environment variables 配置。
- */
-// 内置默认免费通道（用户未配置环境变量时使用）
-const DEFAULT_FREE_API_KEY = "sk-17340d9fd1be4eec9e56470e8e087d4a";
-const DEFAULT_FREE_PROVIDER: AiSessionConfig["provider"] = "deepseek";
-const DEFAULT_FREE_MODEL = "deepseek-v4-flash";
-
-function getFreeSession(): AiSessionConfig | null {
-  const apiKey = process.env.FREE_AI_API_KEY || DEFAULT_FREE_API_KEY;
-  const provider =
-    (process.env.FREE_AI_PROVIDER as AiSessionConfig["provider"]) ||
-    DEFAULT_FREE_PROVIDER;
-  return {
-    provider,
-    apiKey,
-    baseURL: process.env.FREE_AI_BASE_URL || undefined,
-    model: process.env.FREE_AI_MODEL || DEFAULT_FREE_MODEL,
-  };
-}
-
+/** 免费通道始终可用（内置默认密钥开箱即用，见 lib/ai/free-session.ts） */
 function isFreeChannelAvailable(): boolean {
-  return getFreeSession() !== null;
+  return true;
 }
 
 /**
@@ -276,43 +255,73 @@ export async function POST(request: NextRequest) {
   }
 
   const freeSession = getFreeSession();
-  if (freeSession) {
-    try {
-      const stream = await callUpstreamStream(freeSession, systemPrompt, messages);
-      const quota: QuotaSnapshot = await consumeQuota(clientId);
-      // 在流前面插入 meta 行（含 quota），用 TransformStream 拼接
-      // 关键：writer 写入后必须 releaseLock，否则 pipeTo 会因锁冲突静默失败
-      const encoder = new TextEncoder();
-      const metaLine = encoder.encode(JSON.stringify({ type: "meta", quota }) + "\n");
-      const { readable, writable } = new TransformStream();
-      const writer = writable.getWriter();
-      await writer.write(metaLine);
-      writer.releaseLock();
-      stream.pipeTo(writable).catch((err) => {
-        // 上游流错误时确保 readable 正常关闭，避免客户端挂起
-        console.error("[ai/chat] stream pipeTo failed:", err);
-      });
-      return new Response(readable, {
-        headers: {
-          "Content-Type": "application/x-ndjson; charset=utf-8",
-          "Cache-Control": "no-cache",
-        },
-      });
-    } catch (err) {
-      const errorClass = classifyAiError(err);
-      const rawError =
-        err instanceof Error
-          ? err.message
-          : typeof err === "string"
-            ? err
-            : JSON.stringify(err);
-      // 上游 auth 错误（401）仍返回错误响应，引导用户配置自己的 Key
-      if (errorClass === "upstream-auth") {
-        return errorResponse(errorClass, rawError, "free", before);
+
+  // 尝试调用上游：env 密钥鉴权失败时自动回退到内置默认密钥重试
+  // 场景：Cloudflare Secret 中配置的旧密钥失效，代码内置默认密钥仍有效
+  let stream: ReadableStream<Uint8Array> | null = null;
+  try {
+    stream = await callUpstreamStream(freeSession, systemPrompt, messages);
+  } catch (err) {
+    const errorClass = classifyAiError(err);
+    const rawError =
+      err instanceof Error
+        ? err.message
+        : typeof err === "string"
+          ? err
+          : JSON.stringify(err);
+
+    if (errorClass === "upstream-auth" && isUsingEnvKey(freeSession)) {
+      // env 密钥鉴权失败 → 回退到内置默认密钥重试
+      console.warn("[ai/chat] env 密钥鉴权失败，回退到默认密钥重试:", rawError.slice(0, 120));
+      try {
+        stream = await callUpstreamStream(
+          getDefaultKeySession(freeSession),
+          systemPrompt,
+          messages
+        );
+      } catch (err2) {
+        const ec2 = classifyAiError(err2);
+        const re2 =
+          err2 instanceof Error
+            ? err2.message
+            : typeof err2 === "string"
+              ? err2
+              : JSON.stringify(err2);
+        if (ec2 === "upstream-auth") {
+          // 默认密钥也鉴权失败 → 返回错误，引导用户配置自己的 Key
+          return errorResponse(ec2, re2, "free", before);
+        }
+        console.warn("[ai/chat] 默认密钥也失败，降级到 fallback reply:", re2.slice(0, 200));
       }
-      // 上游不可用/超时/其他错误 → 降级到本地兜底文案，保证用户能收到回复
+    } else if (errorClass === "upstream-auth") {
+      // 已是默认密钥仍鉴权失败 → 返回错误
+      return errorResponse(errorClass, rawError, "free", before);
+    } else {
+      // 非 auth 错误（超时/网络等）→ 降级到本地兜底文案
       console.warn("[ai/chat] 免费通道失败，降级到 fallback reply:", rawError.slice(0, 200));
     }
+  }
+
+  if (stream) {
+    const quota: QuotaSnapshot = await consumeQuota(clientId);
+    // 在流前面插入 meta 行（含 quota），用 TransformStream 拼接
+    // 关键：writer 写入后必须 releaseLock，否则 pipeTo 会因锁冲突静默失败
+    const encoder = new TextEncoder();
+    const metaLine = encoder.encode(JSON.stringify({ type: "meta", quota }) + "\n");
+    const { readable, writable } = new TransformStream();
+    const writer = writable.getWriter();
+    await writer.write(metaLine);
+    writer.releaseLock();
+    stream.pipeTo(writable).catch((err) => {
+      // 上游流错误时确保 readable 正常关闭，避免客户端挂起
+      console.error("[ai/chat] stream pipeTo failed:", err);
+    });
+    return new Response(readable, {
+      headers: {
+        "Content-Type": "application/x-ndjson; charset=utf-8",
+        "Cache-Control": "no-cache",
+      },
+    });
   }
 
   // 通道3：免费通道未配置或失败 → 本地兜底引导文案（保证无 Key 也能响应）
