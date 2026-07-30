@@ -163,15 +163,27 @@ function errorResponse(
   context: "byok" | "free",
   quota?: QuotaSnapshot
 ) {
-  const message =
-    errorClass === "upstream-auth"
-      ? context === "byok"
+  let message: string;
+  let status: number;
+  if (errorClass === "upstream-auth") {
+    message =
+      context === "byok"
         ? "API Key 无效或权限不足，请检查 Key 和 Provider 配置"
-        : "免费通道密钥失效，可配置自己的 API Key"
-      : errorClass === "local"
-        ? `本地配置错误（${rawError.slice(0, 120)}）`
-        : `AI 服务暂时不可用，请稍后重试（${rawError.slice(0, 100)}）`;
-  const status = errorClass === "upstream-auth" ? 401 : 500;
+        : "免费通道密钥失效，可配置自己的 API Key";
+    status = 401;
+  } else if (errorClass === "upstream-payment") {
+    message =
+      context === "byok"
+        ? "API 账户余额不足，请充值后重试，或在「我的」页配置其他 API Key"
+        : "AI 服务额度已耗尽，可配置自己的 API Key 继续使用";
+    status = 402;
+  } else if (errorClass === "local") {
+    message = `本地配置错误（${rawError.slice(0, 120)}）`;
+    status = 500;
+  } else {
+    message = `AI 服务暂时不可用，请稍后重试（${rawError.slice(0, 100)}）`;
+    status = 500;
+  }
   return NextResponse.json(
     {
       ok: false,
@@ -270,9 +282,15 @@ export async function POST(request: NextRequest) {
           ? err
           : JSON.stringify(err);
 
-    if (errorClass === "upstream-auth" && isUsingEnvKey(freeSession)) {
-      // env 密钥鉴权失败 → 回退到内置默认密钥重试
-      console.warn("[ai/chat] env 密钥鉴权失败，回退到默认密钥重试:", rawError.slice(0, 120));
+    if (
+      (errorClass === "upstream-auth" || errorClass === "upstream-payment") &&
+      isUsingEnvKey(freeSession)
+    ) {
+      // env 密钥鉴权失败/余额不足 → 回退到内置默认密钥重试
+      console.warn(
+        `[ai/chat] env 密钥${errorClass === "upstream-payment" ? "余额不足" : "鉴权失败"}，回退到默认密钥重试:`,
+        rawError.slice(0, 120)
+      );
       try {
         stream = await callUpstreamStream(
           getDefaultKeySession(freeSession),
@@ -287,17 +305,17 @@ export async function POST(request: NextRequest) {
             : typeof err2 === "string"
               ? err2
               : JSON.stringify(err2);
-        if (ec2 === "upstream-auth") {
-          // 默认密钥也鉴权失败 → 返回错误，引导用户配置自己的 Key
+        if (ec2 === "upstream-auth" || ec2 === "upstream-payment") {
+          // 默认密钥也鉴权失败/余额不足 → 返回错误，引导用户配置自己的 Key
           return errorResponse(ec2, re2, "free", before);
         }
         console.warn("[ai/chat] 默认密钥也失败，降级到 fallback reply:", re2.slice(0, 200));
       }
-    } else if (errorClass === "upstream-auth") {
-      // 已是默认密钥仍鉴权失败 → 返回错误
+    } else if (errorClass === "upstream-auth" || errorClass === "upstream-payment") {
+      // 已是默认密钥仍鉴权失败/余额不足 → 返回错误
       return errorResponse(errorClass, rawError, "free", before);
     } else {
-      // 非 auth 错误（超时/网络等）→ 降级到本地兜底文案
+      // 非 auth/payment 错误（超时/网络等）→ 降级到本地兜底文案
       console.warn("[ai/chat] 免费通道失败，降级到 fallback reply:", rawError.slice(0, 200));
     }
   }

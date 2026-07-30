@@ -137,6 +137,16 @@ function friendlyAiError(e: unknown): string {
     if (name === "TimeoutError" || name === "AbortError") {
       return `AI 响应超时（${Math.round(AI_FETCH_TIMEOUT_MS / 1000)}s），请检查网络或模型配置后重试`;
     }
+    const msg = e.message.toLowerCase();
+    // 余额不足：友好提示，引导用户充值或配置新 Key
+    if (
+      msg.includes("402") ||
+      msg.includes("insufficient balance") ||
+      msg.includes("余额不足") ||
+      msg.includes("额度已耗尽")
+    ) {
+      return "AI 服务额度已耗尽。可前往「我的」页配置自己的 API Key 继续使用";
+    }
     return e.message;
   }
   return "AI 请求失败";
@@ -289,6 +299,13 @@ export default function AiAssistant() {
     initRef.current = initSessionIfNeeded;
   });
 
+  // 需求4/5：保持 handleSendWithText 最新引用，供 wordflow:ask-ai 事件使用
+  // （事件 effect deps=[]，不使用 ref 则会捕获首次渲染的旧闭包，config/sessionId 过期）
+  // 初始化为 no-op，由 handleSendWithText 声明后的 sync effect 同步为最新引用
+  const sendWithTextRef = useRef<
+    (text: string, baseMessages: ChatMessage[], targetSessionId?: string) => void
+  >(() => {});
+
   // 监听 storage 事件，跨标签同步 AI 配置
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
@@ -426,11 +443,30 @@ export default function AiAssistant() {
   // 监听跨页"问 AI"事件
   useEffect(() => {
     const onAskAi = (e: Event) => {
-      const detail = (e as CustomEvent<{ prompt?: string }>).detail;
+      const detail = (e as CustomEvent<{
+        prompt?: string;
+        newSession?: boolean;
+        autoSend?: boolean;
+      }>).detail;
       if (!detail?.prompt) return;
       initRef.current();
       setOpen(true);
-      setInput(detail.prompt);
+      // 需求4/5：新开对话 + 自动执行查询
+      if (detail.newSession) {
+        const id = createSession();
+        refreshSessions();
+        setSessionId(id);
+        setMessages([]);
+        setSessionMessages(id, []);
+        if (detail.autoSend) {
+          // 传入新 session id，避免使用旧 sessionId 状态
+          sendWithTextRef.current(detail.prompt, [], id);
+        }
+      } else if (detail.autoSend) {
+        sendWithTextRef.current(detail.prompt, []);
+      } else {
+        setInput(detail.prompt);
+      }
     };
     window.addEventListener("wordflow:ask-ai", onAskAi as EventListener);
     return () =>
@@ -710,13 +746,18 @@ export default function AiAssistant() {
     }, 0);
   }
 
-  /** 用指定文本发送（供刷新功能复用） */
-  async function handleSendWithText(text: string, baseMessages: ChatMessage[]) {
+  /** 用指定文本发送（供刷新功能 / 自动发送复用） */
+  async function handleSendWithText(
+    text: string,
+    baseMessages: ChatMessage[],
+    targetSessionId?: string
+  ) {
+    const sid = targetSessionId ?? sessionId;
     if (!text.trim() || sending) return;
     const userMsg: ChatMessage = { role: "user", content: text.trim() };
     const nextMessages: ChatMessage[] = [...baseMessages, userMsg];
     setMessages(nextMessages);
-    appendMessages(sessionId, [userMsg]);
+    appendMessages(sid, [userMsg]);
     refreshSessions();
     setInput("");
     setShowQuickInputs(false);
@@ -754,14 +795,14 @@ export default function AiAssistant() {
           const aiMsg: ChatMessage = { role: "assistant", content: data.text };
           const updated: ChatMessage[] = [...nextMessages, aiMsg];
           setMessages(updated);
-          appendMessages(sessionId, [aiMsg]);
+          appendMessages(sid, [aiMsg]);
           refreshSessions();
           setError("AI 通道暂不可用，以下为离线引导回复。配置 API Key 后可获得完整 AI 对话");
         } else {
           const aiMsg: ChatMessage = { role: "assistant", content: data.text };
           const updated: ChatMessage[] = [...nextMessages, aiMsg];
           setMessages(updated);
-          appendMessages(sessionId, [aiMsg]);
+          appendMessages(sid, [aiMsg]);
           refreshSessions();
         }
       } else {
@@ -803,7 +844,7 @@ export default function AiAssistant() {
           }
         }
         if (fullText) {
-          appendMessages(sessionId, [{ role: "assistant", content: fullText }]);
+          appendMessages(sid, [{ role: "assistant", content: fullText }]);
           refreshSessions();
         }
       }
@@ -812,9 +853,9 @@ export default function AiAssistant() {
       setError(msg);
       if (!fullText) {
         setMessages(nextMessages.slice(0, -1));
-        setSessionMessages(sessionId, nextMessages.slice(0, -1));
+        setSessionMessages(sid, nextMessages.slice(0, -1));
       } else {
-        appendMessages(sessionId, [{ role: "assistant", content: fullText }]);
+        appendMessages(sid, [{ role: "assistant", content: fullText }]);
         refreshSessions();
       }
       refreshSessions();
@@ -822,6 +863,12 @@ export default function AiAssistant() {
       setSending(false);
     }
   }
+
+  // 需求4/5：每次渲染后同步最新 handleSendWithText 到 ref，供 wordflow:ask-ai 事件使用
+  // 放在 handleSendWithText 声明之后，避免 react-hooks/immutability 规则报"先使用后声明"
+  useEffect(() => {
+    sendWithTextRef.current = handleSendWithText;
+  });
 
   /** 删除消息（配对删除：user+assistant 一起删） */
   function handleDeleteMessage(idx: number) {

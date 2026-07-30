@@ -34,7 +34,7 @@ import type { WordCard } from "@/lib/review/fsrs-scheduler";
 import { cardKey } from "@/lib/review/favorite";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ChevronLeftIcon, TrophyIcon, VolumeIcon } from "@/components/ui/icons";
+import { ChevronLeftIcon, TrophyIcon, VolumeIcon, SearchIcon } from "@/components/ui/icons";
 import { usePronunciation } from "@/lib/audio/use-pronunciation";
 import { useSwipe } from "@/lib/review/use-swipe";
 import {
@@ -503,7 +503,7 @@ function FsrsReview() {
           <>
             <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">{word}</h1>
             {!entryLoading && entry?.phonetic && (
-              <span className="font-mono text-base text-neutral-500 sm:text-lg">
+              <span className="block font-mono text-base text-neutral-500 sm:text-lg">
                 {entry.phonetic}
               </span>
             )}
@@ -819,6 +819,25 @@ function DrillMode() {
       if (masteredStudyResult?.shieldEarned) {
         gamification.notifyShield({ kind: "earned" });
       }
+      // 游戏化副作用：标记已会等同于 Easy 评分，计入 XP / 每日任务 / 徽章
+      // （设计文档 §5.5：标记掌握是正反馈，应统计到学习数据）
+      onReviewCompleted({
+        rating: "Easy",
+        wasNew: true,
+        queueLength: words.length,
+      })
+        .then((g) => {
+          if (g.xpGained > 0) setSessionXp((x) => x + g.xpGained);
+          if (g.newBadges.length > 0) {
+            setSessionBadges((prev) => [...prev, ...g.newBadges]);
+          }
+          gamification.notifyReview({
+            xpGained: g.xpGained,
+            questBonusXp: g.questBonusXp,
+            newBadges: g.newBadges,
+          });
+        })
+        .catch(() => {});
       setMasteredCount((n) => n + 1);
       setFlipped(false);
       if (index + 1 >= words.length) {
@@ -1054,7 +1073,7 @@ function DrillMode() {
           <>
             <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">{word}</h1>
             {!entryLoading && entry?.phonetic && (
-              <span className="font-mono text-base text-neutral-500 sm:text-lg">
+              <span className="block font-mono text-base text-neutral-500 sm:text-lg">
                 {entry.phonetic}
               </span>
             )}
@@ -1159,6 +1178,19 @@ function CardBack({
   loading: boolean;
 }) {
   const { speak, speaking, supported: speechSupported } = usePronunciation();
+
+  /** 需求5：点击搜索图标 → 新开 AI 对话 + 自动查询联想记忆 */
+  const handleAskAi = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const w = entry?.word ?? word;
+    const prompt = `请帮我深入联想记忆单词「${w}」：\n1. 词根词缀拆解与同源词\n2. 同近义词辨析（语义/语境差异）\n3. 反义词对比\n4. 3 个高频搭配 + 例句\n5. 词族派生（名词/动词/形容词/副词）\n6. 一个生动的记忆故事或画面`;
+    window.dispatchEvent(
+      new CustomEvent("wordflow:ask-ai", {
+        detail: { prompt, newSession: true, autoSend: true },
+      })
+    );
+  };
+
   if (loading) {
     return <p className="text-sm text-neutral-400">加载释义…</p>;
   }
@@ -1181,6 +1213,15 @@ function CardBack({
               <VolumeIcon title="发音" className={`h-4 w-4 ${speaking ? "animate-pulse text-blue-500" : ""}`} />
             </Button>
           )}
+          <Button
+            type="button"
+            onClick={handleAskAi}
+            variant="secondary"
+            size="sm"
+            aria-label={`问 AI 联想记忆 ${word}`}
+          >
+            <SearchIcon title="问 AI 联想记忆" className="h-4 w-4" />
+          </Button>
         </div>
         <p className="text-sm text-neutral-400">（本地词库无此词条释义）</p>
       </div>
@@ -1188,29 +1229,40 @@ function CardBack({
   }
   return (
     <div className="flex w-full flex-col gap-3 text-left">
-      <div className="flex items-center gap-3">
-        <span className="text-2xl font-bold">{entry.word}</span>
-        {entry.phonetic && (
-          <span className="font-mono text-sm text-neutral-500">
-            {entry.phonetic}
-          </span>
-        )}
-        {entry.pos && (
-          <span className="text-sm italic text-neutral-400">{entry.pos}</span>
-        )}
-        {speechSupported && (
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl font-bold">{entry.word}</span>
+          {entry.pos && (
+            <span className="text-sm italic text-neutral-400">{entry.pos}</span>
+          )}
+          {speechSupported && (
+            <Button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                speak(entry.word);
+              }}
+              variant={speaking ? "primary" : "secondary"}
+              size="sm"
+              aria-label={`发音 ${entry.word}`}
+            >
+              <VolumeIcon title="发音" className={`h-4 w-4 ${speaking ? "animate-pulse text-blue-500" : ""}`} />
+            </Button>
+          )}
           <Button
             type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              speak(entry.word);
-            }}
-            variant={speaking ? "primary" : "secondary"}
+            onClick={handleAskAi}
+            variant="secondary"
             size="sm"
-            aria-label={`发音 ${entry.word}`}
+            aria-label={`问 AI 联想记忆 ${entry.word}`}
           >
-            <VolumeIcon title="发音" className={`h-4 w-4 ${speaking ? "animate-pulse text-blue-500" : ""}`} />
+            <SearchIcon title="问 AI 联想记忆" className="h-4 w-4" />
           </Button>
+        </div>
+        {entry.phonetic && (
+          <span className="block font-mono text-sm text-neutral-500">
+            {entry.phonetic}
+          </span>
         )}
       </div>
       <p className="text-base leading-relaxed text-neutral-800 dark:text-neutral-200">

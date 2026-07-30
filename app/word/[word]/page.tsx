@@ -347,7 +347,9 @@ export default function WordPage({
             onClick={() => {
               const prompt = `请帮我深入联想记忆单词「${entry.word}」：\n1. 词根词缀拆解与同源词\n2. 同近义词辨析（语义/语境差异）\n3. 反义词对比\n4. 3 个高频搭配 + 例句\n5. 词族派生（名词/动词/形容词/副词）\n6. 一个生动的记忆故事或画面`;
               window.dispatchEvent(
-                new CustomEvent("wordflow:ask-ai", { detail: { prompt } })
+                new CustomEvent("wordflow:ask-ai", {
+                  detail: { prompt, newSession: true, autoSend: true },
+                })
               );
             }}
           >
@@ -374,7 +376,9 @@ export default function WordPage({
             onClick={() => {
               const prompt = `请帮我深入联想记忆单词「${entry.word}」：\n1. 词根词缀拆解与同源词\n2. 同近义词辨析（语义/语境差异）\n3. 反义词对比\n4. 3 个高频搭配 + 例句\n5. 词族派生（名词/动词/形容词/副词）\n6. 一个生动的记忆故事或画面`;
               window.dispatchEvent(
-                new CustomEvent("wordflow:ask-ai", { detail: { prompt } })
+                new CustomEvent("wordflow:ask-ai", {
+                  detail: { prompt, newSession: true, autoSend: true },
+                })
               );
             }}
           >

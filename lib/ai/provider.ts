@@ -23,7 +23,11 @@ export interface AiSessionConfig {
   model?: string;
 }
 
-export type AiErrorClass = "upstream-auth" | "upstream-other" | "local";
+export type AiErrorClass =
+  | "upstream-auth"
+  | "upstream-payment"
+  | "upstream-other"
+  | "local";
 
 export const PROVIDER_CONFIGS: Record<ProviderName, ProviderConfig> = {
   glm: {
@@ -139,6 +143,19 @@ export function classifyAiError(error: unknown): AiErrorClass {
     lower.includes("forbidden")
   ) {
     return "upstream-auth";
+  }
+
+  // 3.5 上游余额不足：402 / Insufficient Balance / 余额不足
+  // 需单独识别：鉴权通过但账户余额耗尽，提示用户充值或更换 Key
+  if (
+    lower.includes("402") ||
+    lower.includes("insufficient balance") ||
+    lower.includes("insufficient_balance") ||
+    lower.includes("余额不足") ||
+    lower.includes("insufficient quota") ||
+    lower.includes("no enough balance")
+  ) {
+    return "upstream-payment";
   }
 
   // 4. 上游其他错误：网络/服务端/模型不存在

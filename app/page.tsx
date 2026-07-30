@@ -20,14 +20,23 @@ import {
 } from "@/lib/search/search-history";
 import { aiLookupWord } from "@/lib/dict/ai-lookup";
 import type { DictEntry } from "@/lib/dict/dict-loader";
+import {
+  favoriteWord,
+  isFavorited,
+  unfavoriteWord,
+} from "@/lib/review/favorite";
+import { onFavoriteAdded } from "@/lib/gamification/hooks";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   BookIcon,
   BooksIcon,
+  CheckIcon,
   ChevronRightIcon,
   CloseIcon,
+  HelpCircleIcon,
   PlusIcon,
+  RefreshIcon,
   SearchIcon,
 } from "@/components/ui/icons";
 import GamificationBar from "@/components/gamification/gamification-bar";
@@ -78,11 +87,12 @@ export default function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // AI 搜索状态：内置词典无结果时自动调用 AI
+  // AI 搜索状态：用户点击末尾"问 AI 查询"条目时手动触发
   const [aiSearching, setAiSearching] = useState(false);
-  const [aiPending, setAiPending] = useState(false);
   const [aiEntry, setAiEntry] = useState<DictEntry | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [favorited, setFavorited] = useState(false);
+  const [toggling, setToggling] = useState(false);
   const aiQueryRef = useRef<string>("");
 
   // 打开即聚焦
@@ -143,56 +153,88 @@ export default function HomePage() {
       .catch(() => setActiveBookName(null));
   }, [activeBookId]);
 
-  // AI 搜索：内置词典无结果时自动调用（debounce 等搜索稳定后触发）
+  // 需求6：查询词变化时清理 AI 搜索状态（改为手动触发，避免每次输入都消耗 AI 额度）
   useEffect(() => {
     const trimmed = query.trim();
-    if (!trimmed || trimmed.length < 2 || !indexReady || results.length > 0 || loading) {
-      // 清理 AI 状态：延迟到微任务，避免 effect 内同步 setState 触发级联渲染
+    if (aiQueryRef.current !== trimmed) {
+      aiQueryRef.current = "";
       queueMicrotask(() => {
         setAiEntry(null);
         setAiError(null);
         setAiSearching(false);
-        setAiPending(false);
+        setFavorited(false);
       });
-      aiQueryRef.current = "";
-      return;
     }
+  }, [query]);
 
-    // 内置词典无结果 + 搜索完成 → 标记 AI 搜索待触发（防抖窗口）
-    queueMicrotask(() => setAiPending(true));
+  // 需求6：手动触发 AI 查询（点击搜索结果末尾的"问 AI 查询"条目）
+  const handleAiQuery = (word: string) => {
+    const trimmed = word.trim();
+    if (!trimmed || aiSearching) return;
+    aiQueryRef.current = trimmed;
+    setAiSearching(true);
+    setAiEntry(null);
+    setAiError(null);
+    setFavorited(false);
 
-    // 防抖：等 500ms 确认用户停止输入
-    const timer = setTimeout(() => {
-      // 避免重复查询同一词
-      if (aiQueryRef.current === trimmed) return;
-      aiQueryRef.current = trimmed;
-      setAiPending(false);
-      setAiSearching(true);
-      setAiEntry(null);
-      setAiError(null);
-
-      aiLookupWord(trimmed)
-        .then((result) => {
-          setAiSearching(false);
-          if (result.ok && result.entry) {
-            setAiEntry(result.entry);
-          } else {
-            setAiError(result.error || "AI 搜索失败");
+    aiLookupWord(trimmed)
+      .then(async (result) => {
+        setAiSearching(false);
+        if (result.ok && result.entry) {
+          setAiEntry(result.entry);
+          // 查到词后检查是否已收藏
+          try {
+            const f = await isFavorited(result.entry.word);
+            setFavorited(f);
+          } catch {
+            setFavorited(false);
           }
-        })
-        .catch(() => {
-          setAiSearching(false);
-          setAiError("AI 搜索网络错误");
-        });
-    }, 500);
+        } else {
+          setAiError(result.error || "AI 查询失败");
+        }
+      })
+      .catch(() => {
+        setAiSearching(false);
+        setAiError("AI 查询网络错误");
+      });
+  };
 
-    return () => {
-      clearTimeout(timer);
-      setAiPending(false);
-    };
-  }, [query, results.length, loading, indexReady]);
+  // 需求6：收藏/取消收藏 AI 查到的生词（入队 FSRS 复习）
+  const handleToggleFavorite = async () => {
+    const word = aiEntry?.word;
+    if (!word || toggling) return;
+    setToggling(true);
+    try {
+      if (favorited) {
+        await unfavoriteWord(word);
+        setFavorited(false);
+      } else {
+        await favoriteWord(word);
+        setFavorited(true);
+        // 触发游戏化：XP + 任务 + 徽章
+        try {
+          const g = await onFavoriteAdded({});
+          gamification.notifyFavorite({
+            xpGained: g.xpGained,
+            questBonusXp: g.questBonusXp,
+            newBadges: g.newBadges,
+          });
+        } catch {
+          /* 游戏化失败不影响收藏 */
+        }
+      }
+    } catch {
+      /* 忽略 */
+    } finally {
+      setToggling(false);
+    }
+  };
 
   const hasQuery = query.trim().length > 0;
+  // 需求6：判断是否已存在完全匹配（大小写无关）的内置词条；有则不再展示 AI 查询入口
+  const trimmedQuery = query.trim();
+  const hasExactMatch = trimmedQuery.length > 0 &&
+    results.some((r) => r.word.toLowerCase() === trimmedQuery.toLowerCase());
   // 清除按钮直接从 query 派生，避免 effect 内 setState
   const showClear = query.length > 0;
   const totalTodo = (dueCount ?? 0) + (newWordCount ?? 0);
@@ -332,24 +374,6 @@ export default function HomePage() {
           {loading && (
             <li className="px-4 py-3 text-sm text-neutral-400">搜索中…</li>
           )}
-          {!loading && results.length === 0 && !aiSearching && !aiPending && !aiEntry && !aiError && (
-            <li className="px-4 py-3 text-sm text-neutral-400">
-              无匹配，试试检查拼写
-            </li>
-          )}
-          {!loading && results.length === 0 && (aiSearching || aiPending) && (
-            <li className="px-4 py-3 text-sm text-neutral-400">
-              <span className="inline-flex items-center gap-2">
-                <span className="animate-pulse">●</span>
-                AI 搜索中…
-              </span>
-            </li>
-          )}
-          {!loading && results.length === 0 && aiError && !aiEntry && (
-            <li className="px-4 py-3 text-sm text-neutral-400">
-              {aiError}
-            </li>
-          )}
           {!loading &&
             results.map((entry) => (
               <li key={entry.word}>
@@ -365,31 +389,108 @@ export default function HomePage() {
                 </Link>
               </li>
             ))}
-          {/* AI 搜索结果（已自动加入我的词库） */}
-          {!loading && results.length === 0 && aiEntry && (
+          {/* 需求6：无完全匹配时，末尾追加"问 AI 查询"条目（用户输入原词 + 问号图标） */}
+          {!loading && !hasExactMatch && trimmedQuery.length >= 2 && !aiSearching && !aiEntry && (
             <li>
-              <Link
-                href={`/word/${encodeURIComponent(aiEntry.word)}`}
-                onClick={() => handlePick(aiEntry.word)}
-                className="flex items-center justify-between px-4 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-900"
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => handleAiQuery(trimmedQuery)}
+                className="w-full !justify-between !py-3 text-left"
               >
-                <span className="flex flex-col gap-0.5">
-                  <span className="font-mono text-base">{aiEntry.word}</span>
-                  {aiEntry.translation && (
-                    <span className="text-xs text-neutral-500 line-clamp-1">
-                      {aiEntry.translation.split("\n")[0]}
+                <span className="flex items-center gap-2">
+                  <HelpCircleIcon
+                    title="问 AI 查询"
+                    className="h-4 w-4 shrink-0 text-blue-500"
+                  />
+                  <span className="font-mono text-base text-blue-600 dark:text-blue-400">
+                    {trimmedQuery}
+                  </span>
+                </span>
+                <span className="text-[10px] text-neutral-400">问 AI 查询</span>
+              </Button>
+            </li>
+          )}
+          {/* AI 查询中 */}
+          {!loading && aiSearching && (
+            <li className="px-4 py-3 text-sm text-neutral-400">
+              <span className="inline-flex items-center gap-2">
+                <RefreshIcon
+                  title="查询中"
+                  className="h-3.5 w-3.5 animate-spin text-blue-500"
+                />
+                AI 查询中…
+              </span>
+            </li>
+          )}
+          {/* AI 查询失败 */}
+          {!loading && aiError && !aiEntry && (
+            <li className="px-4 py-3 text-sm text-neutral-400">
+              <span className="flex items-center justify-between gap-2">
+                <span>{aiError}</span>
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  onClick={() => handleAiQuery(trimmedQuery)}
+                  className="shrink-0 px-2"
+                >
+                  重试
+                </Button>
+              </span>
+            </li>
+          )}
+          {/* 需求6：AI 查询结果（已自动入生词本）+ 收藏按钮 */}
+          {!loading && aiEntry && (
+            <li className="bg-blue-50/50 dark:bg-blue-950/20">
+              <div className="flex items-center justify-between gap-2 px-4 py-3">
+                <Link
+                  href={`/word/${encodeURIComponent(aiEntry.word)}`}
+                  onClick={() => handlePick(aiEntry.word)}
+                  className="flex flex-1 flex-col gap-0.5 hover:opacity-80"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span className="font-mono text-base font-medium">
+                      {aiEntry.word}
+                    </span>
+                    <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] text-blue-600 dark:bg-blue-950 dark:text-blue-300">
+                      AI
+                    </span>
+                  </span>
+                  {aiEntry.phonetic && (
+                    <span className="font-mono text-xs text-neutral-500">
+                      {aiEntry.phonetic}
                     </span>
                   )}
-                </span>
-                <span className="flex shrink-0 items-center gap-1.5">
-                  <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] text-blue-600 dark:bg-blue-950 dark:text-blue-300">
-                    AI
-                  </span>
+                  {aiEntry.translation && (
+                    <span className="text-xs text-neutral-500 line-clamp-2">
+                      {aiEntry.translation.split("\n").slice(0, 2).join("；")}
+                    </span>
+                  )}
                   <span className="text-[10px] text-green-600 dark:text-green-400">
-                    已入库
+                    已入生词本
                   </span>
-                </span>
-              </Link>
+                </Link>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="iconSm"
+                  onClick={handleToggleFavorite}
+                  disabled={toggling}
+                  aria-label={favorited ? `取消收藏 ${aiEntry.word}` : `收藏 ${aiEntry.word}`}
+                  className={`shrink-0 ${
+                    favorited
+                      ? "!text-amber-500"
+                      : "!text-neutral-400 hover:!text-amber-500"
+                  }`}
+                >
+                  {favorited ? (
+                    <CheckIcon title="已收藏" className="h-4 w-4" />
+                  ) : (
+                    <PlusIcon title="收藏入复习" className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
             </li>
           )}
         </ul>

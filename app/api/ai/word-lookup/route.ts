@@ -199,10 +199,18 @@ export async function POST(request: NextRequest) {
       const message =
         errorClass === "upstream-auth"
           ? "API Key 无效或权限不足"
-          : `AI 查询失败：${rawError.slice(0, 100)}`;
+          : errorClass === "upstream-payment"
+            ? "API 账户余额不足，请充值或更换 API Key"
+            : `AI 查询失败：${rawError.slice(0, 100)}`;
+      const status =
+        errorClass === "upstream-auth"
+          ? 401
+          : errorClass === "upstream-payment"
+            ? 402
+            : 500;
       return NextResponse.json<WordLookupResponse>(
         { ok: false, error: message },
-        { status: errorClass === "upstream-auth" ? 401 : 500 }
+        { status }
       );
     }
   }
@@ -229,7 +237,7 @@ export async function POST(request: NextRequest) {
 
   const freeSession = getFreeSession();
 
-  // 尝试调用上游：env 密钥鉴权失败时自动回退到内置默认密钥重试
+  // 尝试调用上游：env 密钥鉴权失败/余额不足时自动回退到内置默认密钥重试
   let entry: WordLookupResponse["entry"] | null = null;
   try {
     entry = await callAiForWord(freeSession, word);
@@ -237,9 +245,15 @@ export async function POST(request: NextRequest) {
     const errorClass = classifyAiError(err);
     const rawError = err instanceof Error ? err.message : String(err);
 
-    if (errorClass === "upstream-auth" && isUsingEnvKey(freeSession)) {
-      // env 密钥鉴权失败 → 回退到内置默认密钥重试
-      console.warn("[ai/word-lookup] env 密钥鉴权失败，回退到默认密钥重试:", rawError.slice(0, 120));
+    if (
+      (errorClass === "upstream-auth" || errorClass === "upstream-payment") &&
+      isUsingEnvKey(freeSession)
+    ) {
+      // env 密钥鉴权失败/余额不足 → 回退到内置默认密钥重试
+      console.warn(
+        `[ai/word-lookup] env 密钥${errorClass === "upstream-payment" ? "余额不足" : "鉴权失败"}，回退到默认密钥重试:`,
+        rawError.slice(0, 120)
+      );
       try {
         entry = await callAiForWord(getDefaultKeySession(freeSession), word);
       } catch (err2) {
@@ -248,21 +262,27 @@ export async function POST(request: NextRequest) {
         console.warn("[ai/word-lookup] 默认密钥也失败:", re2.slice(0, 200));
         return NextResponse.json<WordLookupResponse>({
           ok: false,
-          error: ec2 === "upstream-auth"
-            ? "免费通道密钥失效，请配置自己的 API Key"
-            : `AI 暂时不可用：${re2.slice(0, 80)}`,
+          error:
+            ec2 === "upstream-auth"
+              ? "免费通道密钥失效，请配置自己的 API Key"
+              : ec2 === "upstream-payment"
+                ? "AI 服务额度已耗尽，可配置自己的 API Key 继续使用"
+                : `AI 暂时不可用：${re2.slice(0, 80)}`,
           quota: before,
           fallback: true,
         });
       }
     } else {
-      // 非 auth 错误或默认密钥也失败 → 不消耗额度
+      // 非 auth/payment 错误或默认密钥也失败 → 不消耗额度
       console.warn("[ai/word-lookup] 免费通道失败:", rawError.slice(0, 200));
       return NextResponse.json<WordLookupResponse>({
         ok: false,
-        error: errorClass === "upstream-auth"
-          ? "免费通道密钥失效，请配置自己的 API Key"
-          : `AI 暂时不可用：${rawError.slice(0, 80)}`,
+        error:
+          errorClass === "upstream-auth"
+            ? "免费通道密钥失效，请配置自己的 API Key"
+            : errorClass === "upstream-payment"
+              ? "AI 服务额度已耗尽，可配置自己的 API Key 继续使用"
+              : `AI 暂时不可用：${rawError.slice(0, 80)}`,
         quota: before,
         fallback: true,
       });

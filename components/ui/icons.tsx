@@ -373,3 +373,14 @@ export function WaveIcon(props: IconProps) {
     </Base>
   );
 }
+
+/** 问号圆圈（问 AI 查询） */
+export function HelpCircleIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-2.5 2-2.5 3.5" />
+      <line x1="12" y1="17" x2="12" y2="17" />
+    </Base>
+  );
+}
