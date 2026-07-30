@@ -41,7 +41,7 @@ wrangler pages deploy .open-next --project-name wordflow-ai --branch main
 
 **现象**：页面能打开但 CSS/JS/词库文件 404
 **原因**：`_routes.json` 未排除静态资源路径，所有请求都被 `_worker.js` 处理
-**解决**：创建 `_routes.json`，exclude 掉 `_next/static/*`、`dict/*`、`book-data/*`、`icons/*` 等
+**解决**：创建 `_routes.json`，exclude 掉 `_next/static/*`、`dict-data/*`、`book-data/*`、`icons/*` 等
 
 ### 8. ❌ 页面路由 404（静态目录与路由同名冲突）
 
@@ -71,6 +71,22 @@ echo "sk-xxx" | wrangler pages secret put FREE_AI_API_KEY --project-name wordflo
 **现象**：部署报 `ASSETS is a reserved name`
 **原因**：Pages 模式下 `ASSETS` 由系统自动绑定，不能在 `wrangler.jsonc` 中显式声明 `assets.binding`
 **解决**：`wrangler.jsonc` 只配置 `pages_build_output_dir`，不配置 `assets.binding`
+
+### 9. ❌ 静态目录重命名后多处遗留导致部署验证失败
+
+**现象**：`/dict` 页面 404（静态目录 `public/dict/` 与 `app/dict/page.tsx` 路由冲突），重命名为 `public/dict-data/` 后，部署脚本验证步骤报"词库不可访问 HTTP 404"
+**原因**：重命名不完整——只改了目录本身和核心加载器（`lib/dict/dict-loader.ts`），遗漏了 4 类散落引用：
+1. `scripts/deploy-pages.sh` 验证 curl（仍请求 `/dict/a/ab.json`）→ 部署脚本误报失败
+2. `.github/workflows/quality-gate.yml` CI 的 `_routes.json` exclude（仍排除 `/dict/*`，未排除 `/dict-data/*`）→ CI 部署中词库被 Worker 拦截 404
+3. `app/me/page.tsx` 的词库健康检查 fetch（仍请求 `/dict/a/ab.json`）→ `/me` 页面误报词库异常
+4. 文档/注释中的路径漂移
+**解决**：重命名静态目录时必须全局同步所有引用。**根治检查**：
+```bash
+# 重命名后执行，确认无遗漏（应只在 lib/dict 源码模块引用中出现，那是模块路径非静态资源）
+grep -rn '/dict/' --include='*.{ts,tsx,sh,yml,yaml,md,py,mjs,js,cjs}' . | grep -v 'dict-data' | grep -v node_modules
+```
+**关键文件**：[lib/dict/dict-loader.ts](file:///workspace/lib/dict/dict-loader.ts)、[scripts/deploy-pages.sh](file:///workspace/scripts/deploy-pages.sh)、[.github/workflows/quality-gate.yml](file:///workspace/.github/workflows/quality-gate.yml)、[app/me/page.tsx](file:///workspace/app/me/page.tsx)
+**教训**：同类问题 `books` → `book-data`（§8）重命名时已完整覆盖 deploy 脚本和 CI，本次 `dict` → `dict-data` 重命名未参照该模板，导致重复踩坑。重命名必须检查：① 加载器 ② 部署脚本验证 ③ CI _routes.json ④ 运行时 fetch ⑤ 文档
 
 ## 标准部署流程（避免失败的检查清单）
 
@@ -105,7 +121,7 @@ curl -s "https://wordflow-ai.pages.dev/api/ai/chat?clientId=test" # AI 状态 en
 curl -s -X POST "https://wordflow-ai.pages.dev/api/ai/chat" \
   -H "Content-Type: application/json" \
   -d '{"messages":[{"role":"user","content":"hi"}],"clientId":"test"}'  # 真实 AI 回复
-curl -s "https://wordflow-ai.pages.dev/dict/a/ab.json" | head -c 100  # 词库可访问
+curl -s "https://wordflow-ai.pages.dev/dict-data/a/ab.json" | head -c 100  # 词库可访问
 ```
 
 ## 环境变量/Secret 配置

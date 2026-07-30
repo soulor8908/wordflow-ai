@@ -61,7 +61,7 @@ cp .open-next/worker.js .open-next/_worker.js
 
 # ── 步骤 3：展开 assets/* 到 .open-next/ 根目录 ──
 echo "▸ 展开 assets/* 到 .open-next/ 根目录（Pages 静态资源根）..."
-# assets/ 包含 _next/static/、books/、dict/、icons/、favicon 等，
+# assets/ 包含 _next/static/、book-data/、dict-data/、icons/、favicon 等，
 # Pages 从部署根目录提供静态文件，必须展开到 .open-next/ 根。
 cp -r .open-next/assets/* .open-next/
 
@@ -126,9 +126,9 @@ else
 fi
 
 # 验证词库可访问
-DICT_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${DEPLOY_URL}/dict/a/ab.json")
+DICT_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${DEPLOY_URL}/dict-data/a/ab.json")
 if [ "$DICT_STATUS" = "200" ]; then
-  echo "  ✓ 词库可访问（dict/a/ab.json HTTP 200）"
+  echo "  ✓ 词库可访问（dict-data/a/ab.json HTTP 200）"
 else
   echo "  ✗ 词库不可访问（HTTP $DICT_STATUS）"
   VERIFY_OK=false

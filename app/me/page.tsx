@@ -816,7 +816,7 @@ function DictStatusSection() {
       // 并行：加载搜索索引 + 测试一个示例切片
       const [indexRes, sliceRes] = await Promise.all([
         fetch("/search-index.json", { cache: cacheOpt }),
-        fetch("/dict/a/ab.json", { cache: cacheOpt }),
+        fetch("/dict-data/a/ab.json", { cache: cacheOpt }),
       ]);
 
       let entryCount = 0;
