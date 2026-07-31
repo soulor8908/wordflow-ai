@@ -17,7 +17,13 @@ import { countByPrefix, listItemsByPrefix } from "@/lib/storage/db";
 import { todayLocalDate } from "@/lib/review/book-queue";
 import type { WordCard } from "@/lib/review/fsrs-scheduler";
 import { Button } from "@/components/ui/button";
-import { ChevronLeftIcon, ChevronRightIcon, ShieldIcon } from "@/components/ui/icons";
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ShieldIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+} from "@/components/ui/icons";
 import {
   generateUserProfile,
   type UserProfile,
@@ -47,6 +53,27 @@ function LazySkeleton() {
   );
 }
 
+/** 把 ISO 时间字符串转成"3天前 / 2小时前 / 刚刚"这种相对时间，便于常错词列表展示 */
+function formatRelativeTime(iso: string): string {
+  try {
+    const t = new Date(iso).getTime();
+    if (!t) return "";
+    const diff = Date.now() - t;
+    const min = Math.floor(diff / 60_000);
+    if (min < 1) return "刚刚";
+    if (min < 60) return `${min} 分钟前`;
+    const hour = Math.floor(min / 60);
+    if (hour < 24) return `${hour} 小时前`;
+    const day = Math.floor(hour / 24);
+    if (day < 30) return `${day} 天前`;
+    const month = Math.floor(day / 30);
+    if (month < 12) return `${month} 个月前`;
+    return `${Math.floor(month / 12)} 年前`;
+  } catch {
+    return "";
+  }
+}
+
 interface ErrorWord {
   word: string;
   errorCount: number;
@@ -66,6 +93,9 @@ export default function StatsPage() {
   const [data, setData] = useState<StatsData | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // 需求5：常错词默认显示 5 个，点击"查看更多"显示全部
+  const ERROR_WORDS_PAGE_SIZE = 5;
+  const [showAllErrorWords, setShowAllErrorWords] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -81,7 +111,8 @@ export default function StatsPage() {
         if (cancelled) return;
         const today = todayLocalDate();
         const todayLog = logs.find((l) => l.date === today) ?? null;
-        // 常错词：errorCount > 0，按错误次数降序，取前 20 个
+        // 常错词：errorCount > 0，按"错误次数降序 → 最近出错时间降序"排序
+        // 需求5：学会后 errorCount<=2 的已自动清零（见 review-session.ts），这里自然不会出现
         const errorWords = cards
           .filter((c) => (c.errorCount ?? 0) > 0)
           .map((c) => ({
@@ -89,8 +120,13 @@ export default function StatsPage() {
             errorCount: c.errorCount ?? 0,
             lastErrorAt: c.lastErrorAt,
           }))
-          .sort((a, b) => b.errorCount - a.errorCount)
-          .slice(0, 20);
+          .sort((a, b) => {
+            // 主排序：错误次数降序
+            if (b.errorCount !== a.errorCount) return b.errorCount - a.errorCount;
+            // 次排序：最近出错时间降序（无时间的排到后面）
+            const at = (x?: string) => (x ? new Date(x).getTime() : 0);
+            return at(b.lastErrorAt) - at(a.lastErrorAt);
+          });
         setData({
           streak: streak
             ? {
@@ -350,25 +386,59 @@ export default function StatsPage() {
         </section>
       )}
 
-      {/* 常错词：复习中 Again/Hard 评分累计，按错误次数降序 */}
+      {/* 常错词：默认显示 5 个，"查看更多"展开全部（需求5） */}
       <section className="rounded-lg border border-neutral-200 px-4 py-4 dark:border-neutral-800">
         <h2 className="mb-3 text-sm font-medium text-neutral-700 dark:text-neutral-300">
-          常错词（最近 {data.errorWords.length} 个）
+          常错词（共 {data.errorWords.length} 个）
+          <span className="ml-2 text-xs font-normal text-neutral-400">
+            按次数 / 时间排序 · 学会后自动清理
+          </span>
         </h2>
         {data.errorWords.length > 0 ? (
-          <ul className="flex flex-col gap-1.5">
-            {data.errorWords.map((word) => (
-              <li key={word.word}>
-                <Link
-                  href={`/word/${encodeURIComponent(word.word)}`}
-                  className="flex items-center justify-between rounded-lg bg-neutral-50 px-3 py-2 text-sm hover:bg-neutral-100 dark:bg-neutral-900 dark:hover:bg-neutral-800"
-                >
-                  <span className="font-mono">{word.word}</span>
-                  <span className="text-xs text-red-500">错误 {word.errorCount} 次</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <>
+            <ul className="flex flex-col gap-1.5">
+              {(showAllErrorWords
+                ? data.errorWords
+                : data.errorWords.slice(0, ERROR_WORDS_PAGE_SIZE)
+              ).map((word) => (
+                <li key={word.word}>
+                  <Link
+                    href={`/word/${encodeURIComponent(word.word)}`}
+                    className="flex items-center justify-between rounded-lg bg-neutral-50 px-3 py-2 text-sm hover:bg-neutral-100 dark:bg-neutral-900 dark:hover:bg-neutral-800"
+                  >
+                    <span className="font-mono">{word.word}</span>
+                    <span className="flex items-center gap-2 text-xs">
+                      {word.lastErrorAt && (
+                        <span className="text-neutral-400">
+                          {formatRelativeTime(word.lastErrorAt)}
+                        </span>
+                      )}
+                      <span className="text-red-500">错误 {word.errorCount} 次</span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            {data.errorWords.length > ERROR_WORDS_PAGE_SIZE && (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setShowAllErrorWords((v) => !v)}
+                className="mt-2 w-full justify-center text-xs text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950"
+              >
+                {showAllErrorWords ? (
+                  <>
+                    <ChevronUpIcon className="h-3.5 w-3.5" /> 收起
+                  </>
+                ) : (
+                  <>
+                    <ChevronDownIcon className="h-3.5 w-3.5" />
+                    查看更多（剩余 {data.errorWords.length - ERROR_WORDS_PAGE_SIZE} 个）
+                  </>
+                )}
+              </Button>
+            )}
+          </>
         ) : (
           <p className="text-sm text-neutral-500">
             暂无常错词记录，复习时标记&ldquo;忘记/模糊&rdquo;会自动累计

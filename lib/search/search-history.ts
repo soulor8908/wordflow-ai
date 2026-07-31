@@ -44,3 +44,15 @@ export function clearSearchHistory(): void {
     /* ignore */
   }
 }
+
+/** 删除单条搜索历史（大小写无关去重） */
+export function removeSearchHistory(word: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    const cur = loadSearchHistory();
+    const next = cur.filter((x) => x.toLowerCase() !== word.toLowerCase());
+    window.localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+  } catch {
+    /* ignore */
+  }
+}

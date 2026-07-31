@@ -93,6 +93,9 @@ export async function submitReview(
  * 用户开局用刷题模式批量标记已会词，后续 FSRS 复习集中精力学不会的词。
  *
  * 若卡片不存在会自动创建一张已掌握卡（不影响 FSRS 学习流，仅占位统计）。
+ *
+ * 需求5：学会后自动清除常错词记录——若 errorCount <= 2，重置为 0（从常错词列表移除）。
+ * 高频错词（errorCount >= 3）保留记录，便于后续重点复习。
  */
 export async function markWordAsMastered(
   word: string,
@@ -103,11 +106,17 @@ export async function markWordAsMastered(
   const existing = await getItem<WordCard>(key);
   const base = existing ?? createNewCard(now, word.toLowerCase(), source);
 
+  // 需求5：学会后清除低频错误记录（errorCount <= 2 → 重置为 0）
+  const shouldClearErrors = (base.errorCount ?? 0) <= 2;
+
   const updated: WordCard = {
     ...base,
     verification: "mastered",
     // 已掌握词推迟到很久以后再复习（30 天后回访一次，确认未遗忘）
     due: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+    // 低频错词学会后清除记录；高频错词（>=3次）保留以便重点跟踪
+    errorCount: shouldClearErrors ? 0 : base.errorCount,
+    lastErrorAt: shouldClearErrors ? undefined : base.lastErrorAt,
   };
   // updatedAt 由 setItem 自动透传到 KVRecord
   await setItem(key, { ...updated, updatedAt: now.toISOString() });

@@ -138,14 +138,15 @@ function friendlyAiError(e: unknown): string {
       return `AI 响应超时（${Math.round(AI_FETCH_TIMEOUT_MS / 1000)}s），请检查网络或模型配置后重试`;
     }
     const msg = e.message.toLowerCase();
-    // 余额不足：友好提示，引导用户充值或配置新 Key
+    // 服务端密钥余额不足：明确告知是服务端问题，不是用户额度问题
     if (
       msg.includes("402") ||
       msg.includes("insufficient balance") ||
       msg.includes("余额不足") ||
-      msg.includes("额度已耗尽")
+      msg.includes("额度已耗尽") ||
+      msg.includes("服务端密钥")
     ) {
-      return "AI 服务额度已耗尽。可前往「我的」页配置自己的 API Key 继续使用";
+      return "AI 服务暂时不可用（服务端密钥余额不足），请稍后重试或在「我的」页配置自己的 API Key";
     }
     return e.message;
   }
@@ -202,6 +203,8 @@ export default function AiAssistant() {
   // lazy init: 首次渲染即从 localStorage 读取，避免 effect 内 setState
   const [quickInputs, setQuickInputs] = useState<QuickInput[]>(() => listQuickInputs());
   const [editingQuick, setEditingQuick] = useState<QuickInput | null>(null);
+  // 需求3：新增模式标记（修复新增表单不显示的 bug：editingQuick=null + 空输入时表单条件为 falsy）
+  const [isAddingQuick, setIsAddingQuick] = useState(false);
   const [editLabel, setEditLabel] = useState("");
   const [editPrompt, setEditPrompt] = useState("");
 
@@ -989,16 +992,16 @@ export default function AiAssistant() {
     const label = editLabel.trim();
     const prompt = editPrompt.trim();
     if (!label || !prompt) return;
-    if (editingQuick && !editingQuick.builtin) {
-      updateQuickInput(editingQuick.id, label, prompt);
-    } else if (editingQuick && editingQuick.builtin) {
-      // 预置项也可编辑 prompt
+    if (editingQuick) {
+      // 编辑（预置和自定义都可编辑）
       updateQuickInput(editingQuick.id, label, prompt);
     } else {
+      // 新增
       addQuickInput(label, prompt);
     }
     refreshQuickInputs();
     setEditingQuick(null);
+    setIsAddingQuick(false);
     setEditLabel("");
     setEditPrompt("");
   }
@@ -1006,6 +1009,7 @@ export default function AiAssistant() {
   /** 快捷输入：开始编辑 */
   function handleEditQuickInput(qi: QuickInput) {
     setEditingQuick(qi);
+    setIsAddingQuick(false);
     setEditLabel(qi.label);
     setEditPrompt(qi.prompt);
   }
@@ -1019,6 +1023,7 @@ export default function AiAssistant() {
   /** 快捷输入：开始新增 */
   function handleAddQuickInput() {
     setEditingQuick(null);
+    setIsAddingQuick(true);
     setEditLabel("");
     setEditPrompt("");
   }
@@ -1237,9 +1242,9 @@ export default function AiAssistant() {
                               size="iconSm"
                               onClick={() => handleDeleteSession(s.id)}
                               aria-label="删除会话"
-                              className="shrink-0 !text-neutral-300 opacity-0 transition-opacity hover:!text-red-500 group-hover:opacity-100"
+                              className="shrink-0 !text-neutral-300 hover:!text-red-500"
                             >
-                              ×
+                              <TrashIcon title="删除会话" className="h-4 w-4" />
                             </Button>
                           </div>
                         </li>
@@ -1499,7 +1504,7 @@ export default function AiAssistant() {
           {/* 快捷输入面板（上拉） */}
           {showQuickInputs && canChat && (
             <div className="absolute bottom-0 left-0 right-0 z-50 max-h-[60vh] overflow-y-auto rounded-t-2xl border-t border-neutral-200 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-950">
-              <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3 dark:border-neutral-900">
+              <div className="flex items-center justify-between border-b border-neutral-100 px-3 py-2 dark:border-neutral-900">
                 <span className="text-sm font-medium">快捷输入</span>
                 <div className="flex items-center gap-1">
                   <Button
@@ -1525,10 +1530,10 @@ export default function AiAssistant() {
                 </div>
               </div>
 
-              {/* 编辑/新增表单 */}
-              {(editingQuick || editLabel || editPrompt) && (
-                <div className="border-b border-neutral-100 px-4 py-3 dark:border-neutral-900">
-                  <div className="mb-2 flex flex-col gap-2">
+              {/* 编辑/新增表单：需求3 修复 isAddingQuick 为 true 时也显示 */}
+              {(editingQuick || isAddingQuick) && (
+                <div className="border-b border-neutral-100 px-3 py-2 dark:border-neutral-900">
+                  <div className="flex flex-col gap-1.5">
                     <Input
                       value={editLabel}
                       onChange={(e) => setEditLabel(e.target.value)}
@@ -1560,6 +1565,7 @@ export default function AiAssistant() {
                         size="sm"
                         onClick={() => {
                           setEditingQuick(null);
+                          setIsAddingQuick(false);
                           setEditLabel("");
                           setEditPrompt("");
                         }}
@@ -1572,12 +1578,12 @@ export default function AiAssistant() {
                 </div>
               )}
 
-              {/* 快捷输入列表 */}
+              {/* 快捷输入列表：需求2 减小间距，需求3 编辑/删除按钮始终可见（移动端无 hover） */}
               <ul className="flex flex-col">
                 {quickInputs.map((qi) => (
                   <li
                     key={qi.id}
-                    className="group flex items-center justify-between gap-2 border-b border-neutral-50 px-4 py-3 hover:bg-neutral-50 dark:border-neutral-900 dark:hover:bg-neutral-900"
+                    className="group flex items-center justify-between gap-2 border-b border-neutral-50 px-3 py-2 hover:bg-neutral-50 dark:border-neutral-900 dark:hover:bg-neutral-900"
                   >
                     <Button
                       type="button"
@@ -1597,7 +1603,7 @@ export default function AiAssistant() {
                         {qi.prompt}
                       </span>
                     </Button>
-                    <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    <div className="flex shrink-0 items-center gap-0.5">
                       <Button
                         type="button"
                         variant="plain"

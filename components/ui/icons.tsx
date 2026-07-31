@@ -238,6 +238,24 @@ export function ChevronRightIcon(props: IconProps) {
   );
 }
 
+/** 向下箭头（展开/下拉） */
+export function ChevronDownIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <polyline points="6 9 12 15 18 9" />
+    </Base>
+  );
+}
+
+/** 向上箭头（收起/上拉） */
+export function ChevronUpIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <polyline points="18 15 12 9 6 15" />
+    </Base>
+  );
+}
+
 /** 复制（两个重叠矩形） */
 export function CopyIcon(props: IconProps) {
   return (

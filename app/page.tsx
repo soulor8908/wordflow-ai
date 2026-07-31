@@ -17,6 +17,7 @@ import {
   loadSearchHistory,
   pushSearchHistory,
   clearSearchHistory,
+  removeSearchHistory,
 } from "@/lib/search/search-history";
 import { aiLookupWord } from "@/lib/dict/ai-lookup";
 import type { DictEntry } from "@/lib/dict/dict-loader";
@@ -496,7 +497,7 @@ export default function HomePage() {
         </ul>
       )}
 
-      {/* 搜索历史：无查询时展示最近查过的词 */}
+      {/* 搜索历史：无查询时展示最近查过的词，支持单条删除 */}
       {!hasQuery && history.length > 0 && (
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
@@ -515,14 +516,30 @@ export default function HomePage() {
           </div>
           <div className="flex flex-wrap gap-2">
             {history.map((w) => (
-              <Link
+              <span
                 key={w}
-                href={`/word/${encodeURIComponent(w)}`}
-                onClick={() => handlePick(w)}
-                className="rounded-full border border-neutral-300 px-3 py-1 text-xs font-mono text-neutral-600 hover:border-blue-400 hover:text-blue-600 dark:border-neutral-700 dark:text-neutral-300"
+                className="group inline-flex items-center gap-1 rounded-full border border-neutral-300 pl-3 pr-1 py-1 text-xs font-mono text-neutral-600 hover:border-blue-400 hover:text-blue-600 dark:border-neutral-700 dark:text-neutral-300"
               >
-                {w}
-              </Link>
+                <Link
+                  href={`/word/${encodeURIComponent(w)}`}
+                  onClick={() => handlePick(w)}
+                >
+                  {w}
+                </Link>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="iconSm"
+                  onClick={() => {
+                    removeSearchHistory(w);
+                    setHistory(loadSearchHistory());
+                  }}
+                  aria-label={`删除 ${w}`}
+                  className="h-4 w-4 rounded-full !text-neutral-400 hover:!text-red-500"
+                >
+                  <CloseIcon title="删除" className="h-3 w-3" />
+                </Button>
+              </span>
             ))}
           </div>
         </div>

@@ -15,8 +15,6 @@ import {
 import { buildFallbackReply } from "@/lib/ai/fallback-reply";
 import {
   getFreeSession,
-  isUsingEnvKey,
-  getDefaultKeySession,
 } from "@/lib/ai/free-session";
 
 interface ChatMessage {
@@ -268,8 +266,10 @@ export async function POST(request: NextRequest) {
 
   const freeSession = getFreeSession();
 
-  // 尝试调用上游：env 密钥鉴权失败时自动回退到内置默认密钥重试
-  // 场景：Cloudflare Secret 中配置的旧密钥失效，代码内置默认密钥仍有效
+  // 尝试调用上游：失败时降级到 fallback reply
+  // 设计：免费通道是"尽力而为"服务，任何上游失败（auth/payment/超时/网络）
+  //       都降级到本地兜底文案，保证用户"还没开始用"也能得到回复，而非看到错误。
+  //       BYOK 通道（用户自带 Key）有独立错误处理，不受影响。
   let stream: ReadableStream<Uint8Array> | null = null;
   try {
     stream = await callUpstreamStream(freeSession, systemPrompt, messages);
@@ -282,40 +282,14 @@ export async function POST(request: NextRequest) {
           ? err
           : JSON.stringify(err);
 
-    if (
-      (errorClass === "upstream-auth" || errorClass === "upstream-payment") &&
-      isUsingEnvKey(freeSession)
-    ) {
-      // env 密钥鉴权失败/余额不足 → 回退到内置默认密钥重试
-      console.warn(
-        `[ai/chat] env 密钥${errorClass === "upstream-payment" ? "余额不足" : "鉴权失败"}，回退到默认密钥重试:`,
-        rawError.slice(0, 120)
-      );
-      try {
-        stream = await callUpstreamStream(
-          getDefaultKeySession(freeSession),
-          systemPrompt,
-          messages
-        );
-      } catch (err2) {
-        const ec2 = classifyAiError(err2);
-        const re2 =
-          err2 instanceof Error
-            ? err2.message
-            : typeof err2 === "string"
-              ? err2
-              : JSON.stringify(err2);
-        if (ec2 === "upstream-auth" || ec2 === "upstream-payment") {
-          // 默认密钥也鉴权失败/余额不足 → 返回错误，引导用户配置自己的 Key
-          return errorResponse(ec2, re2, "free", before);
-        }
-        console.warn("[ai/chat] 默认密钥也失败，降级到 fallback reply:", re2.slice(0, 200));
-      }
-    } else if (errorClass === "upstream-auth" || errorClass === "upstream-payment") {
-      // 已是默认密钥仍鉴权失败/余额不足 → 返回错误
-      return errorResponse(errorClass, rawError, "free", before);
+    if (errorClass === "upstream-payment") {
+      // 服务端密钥余额不足 → 降级到 fallback，不消耗用户额度
+      console.warn("[ai/chat] 免费通道密钥余额不足，降级到 fallback reply:", rawError.slice(0, 200));
+    } else if (errorClass === "upstream-auth") {
+      // 服务端密钥失效 → 降级到 fallback
+      console.warn("[ai/chat] 免费通道密钥鉴权失败，降级到 fallback reply:", rawError.slice(0, 200));
     } else {
-      // 非 auth/payment 错误（超时/网络等）→ 降级到本地兜底文案
+      // 其他错误（超时/网络等）→ 降级到 fallback
       console.warn("[ai/chat] 免费通道失败，降级到 fallback reply:", rawError.slice(0, 200));
     }
   }
