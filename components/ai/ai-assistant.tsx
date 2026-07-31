@@ -137,17 +137,11 @@ function friendlyAiError(e: unknown): string {
     if (name === "TimeoutError" || name === "AbortError") {
       return `AI 响应超时（${Math.round(AI_FETCH_TIMEOUT_MS / 1000)}s），请检查网络或模型配置后重试`;
     }
-    const msg = e.message.toLowerCase();
-    // 服务端密钥余额不足：明确告知是服务端问题，不是用户额度问题
-    if (
-      msg.includes("402") ||
-      msg.includes("insufficient balance") ||
-      msg.includes("余额不足") ||
-      msg.includes("额度已耗尽") ||
-      msg.includes("服务端密钥")
-    ) {
-      return "AI 服务暂时不可用（服务端密钥余额不足），请稍后重试或在「我的」页配置自己的 API Key";
-    }
+    // 直接透传后端 message：后端 errorResponse 已根据 BYOK/免费通道
+    // 给出准确的错误消息（BYOK 余额不足 → "API 账户余额不足"，
+    // 免费通道失败 → 已降级到 fallback，不会走到这里）。
+    // 之前曾把所有含 "402/余额不足" 的错误一刀切替换为"服务端密钥余额不足"，
+    // 这会误伤 BYOK 通道（用户自己的 Key 余额不足时被误导成服务端问题）。
     return e.message;
   }
   return "AI 请求失败";

@@ -138,6 +138,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 402 → 账户余额不足（用户的 Key 余额耗尽，需明确告知，不要混淆成"服务端密钥"问题）
+    if (res.status === 402) {
+      // 尝试从响应体提取上游真实错误信息（如 DeepSeek/GLM 返回的 error.message）
+      let detail = "";
+      try {
+        const json = JSON.parse(bodyText);
+        detail =
+          json.error?.message ||
+          json.message ||
+          json.error?.code ||
+          "";
+      } catch {
+        detail = bodySnippet.slice(0, 120);
+      }
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "upstream-payment",
+          message: `API 账户余额不足，请充值后重试，或在「我的」页更换其他 API Key${
+            detail ? `（${detail.slice(0, 80)}）` : ""
+          }`,
+          rawError: `HTTP 402 ${bodySnippet.slice(0, 120)}`,
+          httpStatus: res.status,
+          contentType,
+          bodySnippet,
+        },
+        { status: 402 }
+      );
+    }
+
     // 2xx 且返回 JSON：检查是否为合法 OpenAI 响应格式
     if (res.ok && contentType.includes("application/json")) {
       try {
