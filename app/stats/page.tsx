@@ -10,7 +10,7 @@
  */
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getStreak, listStudyLogs, type StudyLog } from "@/lib/stats/streak-io";
 import { getShield } from "@/lib/gamification/shield";
 import { countByPrefix, listItemsByPrefix } from "@/lib/storage/db";
@@ -23,11 +23,19 @@ import {
   ShieldIcon,
   ChevronDownIcon,
   ChevronUpIcon,
+  TrashIcon,
 } from "@/components/ui/icons";
 import {
   generateUserProfile,
   type UserProfile,
 } from "@/lib/stats/user-profile";
+import {
+  getTokenUsageSummary,
+  listTokenUsage,
+  clearTokenUsage,
+  type TokenUsageSummary,
+  type TokenUsageRecord,
+} from "@/lib/ai/token-usage";
 
 // 懒加载首屏以下的重组件，拆出独立 chunk，减小首屏 JS 体积
 const PwaSettings = dynamic(() => import("./pwa-settings"), {
@@ -96,6 +104,20 @@ export default function StatsPage() {
   // 需求5：常错词默认显示 5 个，点击"查看更多"显示全部
   const ERROR_WORDS_PAGE_SIZE = 5;
   const [showAllErrorWords, setShowAllErrorWords] = useState(false);
+  // Token 监控
+  const [tokenSummary, setTokenSummary] = useState<TokenUsageSummary | null>(null);
+  const [tokenRecords, setTokenRecords] = useState<TokenUsageRecord[]>([]);
+  const [showAllTokens, setShowAllTokens] = useState(false);
+
+  /** 刷新 token 用量数据 */
+  const refreshTokenUsage = useCallback(async () => {
+    const [summary, records] = await Promise.all([
+      getTokenUsageSummary(),
+      listTokenUsage(50),
+    ]);
+    setTokenSummary(summary);
+    setTokenRecords(records);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -148,6 +170,10 @@ export default function StatsPage() {
           .catch(() => {
             /* 画像生成失败不影响统计页主流程 */
           });
+        // 加载 token 用量数据（非阻塞）
+        refreshTokenUsage().catch(() => {
+          /* token 数据加载失败不影响统计页 */
+        });
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : "加载统计失败");
@@ -310,6 +336,144 @@ export default function StatsPage() {
         <span className="text-neutral-500">已入队卡片：</span>
         <span className="font-mono font-medium">{data.totalCards}</span>
         <span className="text-neutral-400"> 张</span>
+      </section>
+
+      {/* Token 用量监控（设计文档 §4.4.7） */}
+      <section className="rounded-lg border border-neutral-200 px-4 py-4 dark:border-neutral-800">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+            Token 用量监控
+          </h2>
+          {tokenSummary && tokenSummary.records > 0 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={async () => {
+                await clearTokenUsage();
+                await refreshTokenUsage();
+              }}
+              className="text-xs text-neutral-400 hover:text-red-500"
+            >
+              <TrashIcon className="h-3.5 w-3.5" /> 清除
+            </Button>
+          )}
+        </div>
+        {tokenSummary && tokenSummary.records > 0 ? (
+          <>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div>
+                <p className="text-xl font-bold text-blue-500">
+                  {tokenSummary.today.toLocaleString()}
+                </p>
+                <p className="text-xs text-neutral-500">今日</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold text-green-500">
+                  {tokenSummary.week.toLocaleString()}
+                </p>
+                <p className="text-xs text-neutral-500">本周</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold text-purple-500">
+                  {tokenSummary.total.toLocaleString()}
+                </p>
+                <p className="text-xs text-neutral-500">总计</p>
+              </div>
+            </div>
+            {/* 通道 + 类型分布 */}
+            <div className="mt-3 flex flex-wrap gap-3 text-xs text-neutral-500">
+              <span>
+                BYOK:{" "}
+                <span className="font-mono font-medium text-blue-600 dark:text-blue-400">
+                  {tokenSummary.byChannel.byok.toLocaleString()}
+                </span>
+              </span>
+              <span>
+                免费:{" "}
+                <span className="font-mono font-medium text-green-600 dark:text-green-400">
+                  {tokenSummary.byChannel.free.toLocaleString()}
+                </span>
+              </span>
+              <span>
+                聊天:{" "}
+                <span className="font-mono font-medium text-amber-600 dark:text-amber-400">
+                  {tokenSummary.byType.chat.toLocaleString()}
+                </span>
+              </span>
+              <span>
+                查词:{" "}
+                <span className="font-mono font-medium text-cyan-600 dark:text-cyan-400">
+                  {tokenSummary.byType["word-lookup"].toLocaleString()}
+                </span>
+              </span>
+            </div>
+            {/* 最近使用记录 */}
+            {tokenRecords.length > 0 && (
+              <div className="mt-3">
+                <p className="mb-1.5 text-xs text-neutral-500">最近使用记录</p>
+                <ul className="flex flex-col gap-1">
+                  {(showAllTokens
+                    ? tokenRecords
+                    : tokenRecords.slice(0, 5)
+                  ).map((r) => (
+                    <li
+                      key={r.id}
+                      className="flex items-center justify-between gap-2 rounded bg-neutral-50 px-2.5 py-1.5 text-xs dark:bg-neutral-900"
+                    >
+                      <span className="flex shrink-0 items-center gap-1.5">
+                        <span className="font-mono font-medium text-neutral-700 dark:text-neutral-300">
+                          {r.totalTokens}
+                        </span>
+                        <span
+                          className={`rounded px-1 py-0.5 text-[10px] ${
+                            r.channel === "byok"
+                              ? "bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-400"
+                              : "bg-green-100 text-green-600 dark:bg-green-950 dark:text-green-400"
+                          }`}
+                        >
+                          {r.channel === "byok" ? "BYOK" : "免费"}
+                        </span>
+                        <span className="text-[10px] text-neutral-400">
+                          {r.type === "chat" ? "聊天" : "查词"}
+                        </span>
+                      </span>
+                      <span className="truncate text-neutral-400">
+                        {r.preview}
+                      </span>
+                      <span className="shrink-0 text-[10px] text-neutral-400">
+                        {formatRelativeTime(r.timestamp)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {tokenRecords.length > 5 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setShowAllTokens((v) => !v)}
+                    className="mt-2 w-full justify-center text-xs text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950"
+                  >
+                    {showAllTokens ? (
+                      <>
+                        <ChevronUpIcon className="h-3.5 w-3.5" /> 收起
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDownIcon className="h-3.5 w-3.5" />
+                        查看更多（剩余 {tokenRecords.length - 5} 条）
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-neutral-500">
+            暂无 Token 使用记录，与 AI 对话后会自动记录
+          </p>
+        )}
       </section>
 
       {/* 用户画像 */}

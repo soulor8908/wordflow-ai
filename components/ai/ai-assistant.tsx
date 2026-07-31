@@ -48,6 +48,12 @@ import {
   deleteQuickInput,
   type QuickInput,
 } from "@/lib/ai/quick-inputs";
+import {
+  estimateMessagesTokens,
+  estimateTokens,
+  checkTokenLimit,
+} from "@/lib/ai/token-estimate";
+import { recordTokenUsage } from "@/lib/ai/token-usage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -521,6 +527,15 @@ export default function AiAssistant() {
 
     const userMsg: ChatMessage = { role: "user", content: text };
     const nextMessages: ChatMessage[] = [...messages, userMsg];
+
+    // Token 拦截：估算输入 token 数，过长则拒绝发送
+    const estimatedInputTokens = estimateMessagesTokens(nextMessages);
+    const tokenCheck = checkTokenLimit(estimatedInputTokens);
+    if (!tokenCheck.ok && tokenCheck.blocked) {
+      setError(tokenCheck.message);
+      return;
+    }
+
     setMessages(nextMessages);
     appendMessages(sessionId, [userMsg]);
     refreshSessions();
@@ -528,6 +543,10 @@ export default function AiAssistant() {
     setShowQuickInputs(false);
     setSending(true);
     setError(null);
+    // Token 警告（不拦截，仅提示）
+    if (!tokenCheck.ok && !tokenCheck.blocked) {
+      setError(tokenCheck.message);
+    }
 
     let fullText = "";
     try {
@@ -642,6 +661,18 @@ export default function AiAssistant() {
       refreshSessions();
     } finally {
       setSending(false);
+      // 记录 token 用量（收到回复才记录，不记录纯失败）
+      if (fullText) {
+        recordTokenUsage({
+          channel: config ? "byok" : "free",
+          provider: config?.provider ?? "free",
+          model: config?.model ?? "free",
+          inputTokens: estimatedInputTokens,
+          outputTokens: estimateTokens(fullText),
+          type: "chat",
+          preview: text.slice(0, 60),
+        }).catch(() => {});
+      }
     }
   }
 
@@ -753,6 +784,15 @@ export default function AiAssistant() {
     if (!text.trim() || sending) return;
     const userMsg: ChatMessage = { role: "user", content: text.trim() };
     const nextMessages: ChatMessage[] = [...baseMessages, userMsg];
+
+    // Token 拦截：估算输入 token 数，过长则拒绝发送
+    const estimatedInputTokens = estimateMessagesTokens(nextMessages);
+    const tokenCheck = checkTokenLimit(estimatedInputTokens);
+    if (!tokenCheck.ok && tokenCheck.blocked) {
+      setError(tokenCheck.message);
+      return;
+    }
+
     setMessages(nextMessages);
     appendMessages(sid, [userMsg]);
     refreshSessions();
@@ -858,6 +898,18 @@ export default function AiAssistant() {
       refreshSessions();
     } finally {
       setSending(false);
+      // 记录 token 用量（收到回复才记录）
+      if (fullText) {
+        recordTokenUsage({
+          channel: config ? "byok" : "free",
+          provider: config?.provider ?? "free",
+          model: config?.model ?? "free",
+          inputTokens: estimatedInputTokens,
+          outputTokens: estimateTokens(fullText),
+          type: "chat",
+          preview: text.slice(0, 60),
+        }).catch(() => {});
+      }
     }
   }
 

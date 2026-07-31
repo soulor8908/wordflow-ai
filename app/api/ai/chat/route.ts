@@ -27,16 +27,21 @@ interface ChatRequestBody extends Partial<AiSessionConfig> {
   clientId?: string;
 }
 
-/** AI 请求超时（ms）—— 上游模型冷启动/长上下文时首 token 可能 >10s。
+/** 免费通道超时（ms）—— 上游模型冷启动/长上下文时首 token 可能 >10s。
  * 限制在 12s：超过则视为上游不可用，降级到 fallback reply，
  *  避免用户长时间等待 + Cloudflare Worker 超时崩溃（1101）。
  *  Cloudflare Pages Functions subrequest 默认 30s 限制，12s 留足降级时间。 */
-const CHAT_TIMEOUT_MS = 12_000;
+const FREE_CHANNEL_TIMEOUT_MS = 12_000;
 
-function fetchWithTimeout(input: string, init: RequestInit): Promise<Response> {
+/** BYOK 通道超时（ms）—— 用户自带 Key，无需降级到 fallback。
+ * 流式转发一旦首 token 到达，连接保持活跃，IO 等待不计 CPU 时间。
+ * 120s 足够覆盖长回复（1024 tokens）+ 冷启动场景。 */
+const BYOK_TIMEOUT_MS = 120_000;
+
+function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: number): Promise<Response> {
   const signal =
     typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
-      ? AbortSignal.timeout(CHAT_TIMEOUT_MS)
+      ? AbortSignal.timeout(timeoutMs)
       : undefined;
   return fetch(input, { ...init, signal });
 }
@@ -82,7 +87,7 @@ async function callUpstreamStream(
       temperature: 0.7,
       max_tokens: 1024,
     }),
-  });
+  }, FREE_CHANNEL_TIMEOUT_MS);
 
   if (!res.ok || !res.body) {
     const bodyText = await res.text().catch(() => "");
@@ -154,6 +159,104 @@ async function callUpstreamStream(
   });
 }
 
+/**
+ * BYOK 通道：真正的流式转发（逐块读取上游 SSE → 逐块返回 NDJSON delta）。
+ *
+ * 与 callUpstreamStream（缓冲式）的区别：
+ * - 不等待完整响应，首 token 到达即开始返回 → 用户立即看到逐字输出
+ * - 超时 120s（流式连接 IO 等待不计 CPU 时间，不会触发 Cloudflare 超时）
+ * - 错误通过 NDJSON error 行传递，不降级到 fallback（BYOK 用户需要看到真实错误）
+ *
+ * NDJSON 流格式：{"type":"delta","content":"..."} / {"type":"done"} / {"type":"error","message":"..."}
+ */
+async function callUpstreamStreamLive(
+  session: AiSessionConfig,
+  systemPrompt: string,
+  messages: ChatMessage[]
+): Promise<ReadableStream<Uint8Array>> {
+  const cfg = getProviderConfig(session.provider);
+  const finalBaseURL = (session.baseURL || cfg.baseURL).trim();
+  const finalModel = resolveModel(session);
+  if (!finalBaseURL) throw new Error("baseURL 为空，请检查 Provider 配置");
+  validateBaseUrl(finalBaseURL);
+  const endpoint = finalBaseURL.replace(/\/+$/, "") + "/chat/completions";
+
+  const res = await fetchWithTimeout(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: finalModel,
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...messages.map((m) => ({ role: m.role, content: m.content })),
+      ],
+      stream: true,
+      temperature: 0.7,
+      max_tokens: 1024,
+    }),
+  }, BYOK_TIMEOUT_MS);
+
+  if (!res.ok || !res.body) {
+    const bodyText = await res.text().catch(() => "");
+    const err = new Error(`HTTP ${res.status}: ${bodyText.slice(0, 120)}`);
+    (err as Error & { httpStatus?: number }).httpStatus = res.status;
+    throw err;
+  }
+
+  const upstreamReader = res.body.getReader();
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  let buffer = "";
+
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        while (true) {
+          const { done, value } = await upstreamReader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith("data:")) continue;
+            const data = trimmed.slice(5).trim();
+            if (data === "[DONE]") continue;
+            try {
+              const parsed = JSON.parse(data);
+              const delta = parsed.choices?.[0]?.delta?.content;
+              if (delta) {
+                controller.enqueue(
+                  encoder.encode(JSON.stringify({ type: "delta", content: delta }) + "\n")
+                );
+              }
+            } catch {
+              // 跳过无法解析的行（上游心跳/注释）
+            }
+          }
+        }
+        controller.enqueue(
+          encoder.encode(JSON.stringify({ type: "done" }) + "\n")
+        );
+      } catch (err) {
+        // 流式读取中断（网络/超时）→ 通过 error 行通知前端
+        const msg = err instanceof Error ? err.message : "流式读取中断";
+        controller.enqueue(
+          encoder.encode(JSON.stringify({ type: "error", message: `AI 流式响应中断: ${msg}` }) + "\n")
+        );
+      } finally {
+        controller.close();
+      }
+    },
+    cancel() {
+      upstreamReader.cancel().catch(() => {});
+    },
+  });
+}
+
 /** 构造错误响应 */
 function errorResponse(
   errorClass: ReturnType<typeof classifyAiError>,
@@ -217,10 +320,12 @@ export async function POST(request: NextRequest) {
   const systemPrompt = buildSystemPrompt("word_explain_chat");
 
   // ───────── 通道1：BYOK（用户自带 Key，无限制） ─────────
+  // 使用真正的流式转发（callUpstreamStreamLive）：首 token 到达即返回，
+  // 用户立即看到逐字输出，不会因缓冲等待而"没反应"。
   if (provider && apiKey) {
     const session: AiSessionConfig = { provider, apiKey, baseURL, model };
     try {
-      const stream = await callUpstreamStream(session, systemPrompt, messages);
+      const stream = await callUpstreamStreamLive(session, systemPrompt, messages);
       return new Response(stream, {
         headers: {
           "Content-Type": "application/x-ndjson; charset=utf-8",
